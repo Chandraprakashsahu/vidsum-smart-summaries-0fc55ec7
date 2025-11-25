@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import BottomNav from "@/components/BottomNav";
 import CategoryPills from "@/components/CategoryPills";
 import SummaryCard from "@/components/SummaryCard";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const categories = [
   "All",
@@ -77,9 +78,12 @@ const Home = () => {
             </div>
             <h1 className="text-xl font-bold text-foreground">VidSum</h1>
           </div>
-          <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-            <Search className="h-5 w-5 text-foreground" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button className="p-2 hover:bg-muted rounded-lg transition-colors">
+              <Search className="h-5 w-5 text-foreground" />
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
 
         {/* Search Bar */}

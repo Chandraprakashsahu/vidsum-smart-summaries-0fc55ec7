@@ -4,6 +4,7 @@ import SummaryCard from "@/components/SummaryCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const savedSummaries = [
   {
@@ -50,9 +51,12 @@ const Profile = () => {
             </div>
             <h1 className="text-xl font-bold text-foreground">Profile</h1>
           </div>
-          <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-            <Settings className="h-5 w-5 text-foreground" />
-          </button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <button className="p-2 hover:bg-muted rounded-lg transition-colors">
+              <Settings className="h-5 w-5 text-foreground" />
+            </button>
+          </div>
         </div>
       </header>
 

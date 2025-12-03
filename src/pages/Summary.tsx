@@ -1,16 +1,23 @@
-import { useState } from "react";
-import { ArrowLeft, Share2, Bookmark, Play, Pause } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Slider } from "@/components/ui/slider";
+import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 
 const Summary = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState([0]);
   const [isBookmarked, setIsBookmarked] = useState(false);
+
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -18,83 +25,94 @@ const Summary = () => {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const handleBookmark = () => {
+    setIsBookmarked(!isBookmarked);
+    toast({
+      title: isBookmarked ? "Removed from saved" : "Saved!",
+      description: isBookmarked 
+        ? "Summary removed from your library" 
+        : "Summary added to your library",
+      duration: 2000,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Top Bar */}
-      <header className="sticky top-0 z-10 bg-card border-b border-border">
-        <div className="container flex items-center justify-between h-16 px-4">
+      <header className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm border-b border-border">
+        <div className="container flex items-center justify-between h-14 px-4">
           <button
-            onClick={() => navigate("/home")}
-            className="p-2 hover:bg-muted rounded-lg transition-colors"
+            onClick={() => navigate(-1)}
+            className="p-2 hover:bg-muted rounded-full transition-smooth"
           >
             <ArrowLeft className="h-5 w-5 text-foreground" />
           </button>
-          <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-muted rounded-lg transition-colors">
+          <div className="flex items-center gap-1">
+            <button className="p-2 hover:bg-muted rounded-full transition-smooth">
               <Share2 className="h-5 w-5 text-foreground" />
             </button>
             <button
-              onClick={() => setIsBookmarked(!isBookmarked)}
-              className="p-2 hover:bg-muted rounded-lg transition-colors"
+              onClick={handleBookmark}
+              className="p-2 hover:bg-muted rounded-full transition-smooth"
             >
-              <Bookmark
-                className={`h-5 w-5 ${
-                  isBookmarked ? "fill-primary text-primary" : "text-foreground"
-                }`}
-              />
+              {isBookmarked ? (
+                <BookmarkCheck className="h-5 w-5 text-primary fill-primary" />
+              ) : (
+                <Bookmark className="h-5 w-5 text-foreground" />
+              )}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="container px-4 py-6 max-w-3xl">
+      <main className="container px-4 py-4 max-w-2xl">
         {/* Video Thumbnail */}
-        <div className="relative aspect-video rounded-xl overflow-hidden mb-6 group">
+        <div className="relative aspect-video rounded-xl overflow-hidden mb-4 shadow-md group">
           <img
             src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop"
             alt="Video thumbnail"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/50 transition-colors">
-            <div className="w-16 h-16 rounded-full bg-primary/90 flex items-center justify-center cursor-pointer hover:bg-primary transition-colors">
-              <Play className="h-8 w-8 text-primary-foreground ml-1" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center cursor-pointer hover:bg-primary hover:scale-110 transition-all duration-200 shadow-lg">
+              <Play className="h-6 w-6 text-primary-foreground ml-1" />
             </div>
           </div>
         </div>
 
         {/* Title */}
-        <h1 className="text-2xl font-bold mb-4 text-foreground leading-tight">
+        <h1 className="text-lg sm:text-xl font-bold mb-3 text-foreground leading-snug">
           The Future of AI and Machine Learning in 2024
         </h1>
 
         {/* Creator Bar */}
-        <div className="flex items-center justify-between mb-6 pb-6 border-b border-border">
-          <div className="flex items-center gap-3">
-            <Avatar>
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <Avatar className="h-9 w-9">
               <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Tech" />
               <AvatarFallback>TI</AvatarFallback>
             </Avatar>
             <div>
-              <p className="font-medium text-foreground">Tech Insights</p>
-              <p className="text-sm text-muted-foreground">1.2M subscribers</p>
+              <p className="text-sm font-medium text-foreground">Tech Insights</p>
+              <p className="text-xs text-muted-foreground">1.2M subscribers</p>
             </div>
           </div>
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" className="h-8 text-xs px-3">
             + Follow
           </Button>
         </div>
 
         {/* Audio Player */}
-        <div className="sticky top-16 z-10 bg-card border border-border rounded-lg p-4 mb-6 shadow-sm">
-          <div className="flex items-center gap-4 mb-3">
+        <div className="sticky top-14 z-10 bg-card border border-border rounded-xl p-3 mb-4 shadow-sm">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className="w-10 h-10 rounded-full bg-primary hover:bg-primary/90 flex items-center justify-center transition-colors"
+              className="w-9 h-9 rounded-full bg-primary hover:bg-primary/90 flex items-center justify-center transition-smooth flex-shrink-0"
             >
               {isPlaying ? (
-                <Pause className="h-5 w-5 text-primary-foreground" />
+                <Pause className="h-4 w-4 text-primary-foreground" />
               ) : (
-                <Play className="h-5 w-5 text-primary-foreground ml-0.5" />
+                <Play className="h-4 w-4 text-primary-foreground ml-0.5" />
               )}
             </button>
             <div className="flex-1">
@@ -106,72 +124,77 @@ const Summary = () => {
                 className="w-full"
               />
             </div>
-            <span className="text-sm text-muted-foreground font-medium tabular-nums">
+            <span className="text-xs text-muted-foreground font-medium tabular-nums">
               {formatTime(progress[0])} / 07:00
             </span>
           </div>
         </div>
 
         {/* Summary Content */}
-        <div className="prose prose-sm max-w-none">
-          <h2 className="text-xl font-semibold mb-3 text-foreground">
+        <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
+          <h2 className="text-base font-semibold mb-3 text-foreground flex items-center gap-2">
+            <span className="w-1 h-4 bg-primary rounded-full"></span>
             मुख्य बिंदु (Key Points)
           </h2>
           
-          <div className="space-y-4 text-foreground/90 leading-relaxed">
-            <p>
-              आर्टिफिशियल इंटेलिजेंस (AI) और मशीन लर्निंग 2024 में तकनीक के सबसे महत्वपूर्ण क्षेत्र बन गए हैं। यह वीडियो इन तकनीकों के भविष्य और उनके प्रभाव को समझाता है।
+          <div className="space-y-3 text-foreground/85 text-sm leading-relaxed">
+            <p className="text-muted-foreground">
+              आर्टिफिशियल इंटेलिजेंस (AI) और मशीन लर्निंग 2024 में तकनीक के सबसे महत्वपूर्ण क्षेत्र बन गए हैं।
             </p>
 
-            <h3 className="text-lg font-semibold mt-6 mb-2 text-foreground">
-              1. जेनरेटिव AI का विकास
-            </h3>
-            <p>
-              • ChatGPT और DALL-E जैसे टूल्स ने कंटेंट क्रिएशन में क्रांति ला दी है
-              <br />
-              • टेक्स्ट, इमेज और वीडियो जेनरेशन अब पहले से कहीं ज्यादा आसान हो गया है
-              <br />
-              • व्यवसायों में ऑटोमेशन और दक्षता में वृद्धि हो रही है
-            </p>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">1</span>
+                जेनरेटिव AI का विकास
+              </h3>
+              <ul className="space-y-1 text-xs text-muted-foreground pl-7">
+                <li>• ChatGPT और DALL-E ने कंटेंट क्रिएशन में क्रांति लाई</li>
+                <li>• टेक्स्ट, इमेज और वीडियो जेनरेशन आसान हो गया</li>
+                <li>• व्यवसायों में ऑटोमेशन बढ़ रहा है</li>
+              </ul>
+            </div>
 
-            <h3 className="text-lg font-semibold mt-6 mb-2 text-foreground">
-              2. एथिकल AI और रेगुलेशन
-            </h3>
-            <p>
-              • AI के उपयोग में नैतिकता और पारदर्शिता महत्वपूर्ण हो गई है
-              <br />
-              • सरकारें और संगठन AI रेगुलेशन पर काम कर रहे हैं
-              <br />
-              • डेटा प्राइवेसी और बायस को दूर करना प्राथमिकता है
-            </p>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">2</span>
+                एथिकल AI और रेगुलेशन
+              </h3>
+              <ul className="space-y-1 text-xs text-muted-foreground pl-7">
+                <li>• AI में नैतिकता और पारदर्शिता महत्वपूर्ण</li>
+                <li>• सरकारें AI रेगुलेशन पर काम कर रही हैं</li>
+                <li>• डेटा प्राइवेसी प्राथमिकता है</li>
+              </ul>
+            </div>
 
-            <h3 className="text-lg font-semibold mt-6 mb-2 text-foreground">
-              3. रोजगार पर प्रभाव
-            </h3>
-            <p>
-              • कुछ नौकरियां ऑटोमेट हो रही हैं, लेकिन नए अवसर भी बन रहे हैं
-              <br />
-              • AI स्किल्स की मांग तेजी से बढ़ रही है
-              <br />
-              • मानव-AI सहयोग भविष्य का मॉडल है
-            </p>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">3</span>
+                रोजगार पर प्रभाव
+              </h3>
+              <ul className="space-y-1 text-xs text-muted-foreground pl-7">
+                <li>• नई नौकरियां और अवसर बन रहे हैं</li>
+                <li>• AI स्किल्स की मांग बढ़ रही है</li>
+                <li>• मानव-AI सहयोग भविष्य का मॉडल</li>
+              </ul>
+            </div>
 
-            <h3 className="text-lg font-semibold mt-6 mb-2 text-foreground">
-              4. व्यावहारिक उपयोग
-            </h3>
-            <p>
-              • स्वास्थ्य सेवा में रोग निदान और उपचार योजना
-              <br />
-              • शिक्षा में व्यक्तिगत सीखने के अनुभव
-              <br />
-              • परिवहन में स्वायत्त वाहन और ट्रैफिक प्रबंधन
-            </p>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">4</span>
+                व्यावहारिक उपयोग
+              </h3>
+              <ul className="space-y-1 text-xs text-muted-foreground pl-7">
+                <li>• स्वास्थ्य में रोग निदान</li>
+                <li>• शिक्षा में व्यक्तिगत अनुभव</li>
+                <li>• स्वायत्त वाहन और ट्रैफिक प्रबंधन</li>
+              </ul>
+            </div>
           </div>
         </div>
 
         {/* Watch on YouTube Button */}
-        <div className="mt-8">
-          <Button className="w-full h-12 text-base font-semibold" size="lg">
+        <div className="mt-4">
+          <Button className="w-full h-11 text-sm font-semibold" size="lg">
             Watch on YouTube
           </Button>
         </div>

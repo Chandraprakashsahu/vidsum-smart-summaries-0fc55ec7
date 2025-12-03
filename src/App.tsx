@@ -11,6 +11,7 @@ import Explore from "./pages/Explore";
 import Following from "./pages/Following";
 import Profile from "./pages/Profile";
 import Add from "./pages/Add";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/following" element={<Following />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/add" element={<Add />} />
+          <Route path="/settings" element={<Settings />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

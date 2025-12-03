@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck } from "lucide-react";
+import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck, UserPlus, UserCheck } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
+import { useFollowing } from "@/hooks/use-following";
 import BottomNav from "@/components/BottomNav";
 
 // Demo summary data - in real app this would come from API
@@ -17,6 +18,7 @@ const summaryData = {
   readTime: 5,
   listenTime: 7,
   category: "Technology",
+  subscribers: "1.2M",
 };
 
 const Summary = () => {
@@ -24,12 +26,14 @@ const Summary = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const { isSaved, toggleSave } = useSavedSummaries();
+  const { isFollowing, toggleFollow } = useFollowing();
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState([0]);
 
   // Use the id from URL params, fallback to demo data
   const currentSummary = { ...summaryData, id: id || summaryData.id };
   const isBookmarked = isSaved(currentSummary.id);
+  const isFollowingCreator = isFollowing(currentSummary.channel);
 
   // Scroll to top when page loads
   useEffect(() => {
@@ -49,6 +53,23 @@ const Summary = () => {
       description: wasSaved 
         ? "Summary added to your library" 
         : "Summary removed from your library",
+      duration: 2000,
+    });
+  };
+
+  const handleFollow = () => {
+    const creator = {
+      id: currentSummary.channel.toLowerCase().replace(/\s/g, '-'),
+      name: currentSummary.channel,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentSummary.channel}`,
+      subscribers: currentSummary.subscribers,
+    };
+    const nowFollowing = toggleFollow(creator);
+    toast({
+      title: nowFollowing ? "Following!" : "Unfollowed",
+      description: nowFollowing 
+        ? `You are now following ${currentSummary.channel}` 
+        : `You unfollowed ${currentSummary.channel}`,
       duration: 2000,
     });
   };
@@ -111,11 +132,26 @@ const Summary = () => {
             </Avatar>
             <div>
               <p className="text-sm font-medium text-foreground">{currentSummary.channel}</p>
-              <p className="text-xs text-muted-foreground">1.2M subscribers</p>
+              <p className="text-xs text-muted-foreground">{currentSummary.subscribers} subscribers</p>
             </div>
           </div>
-          <Button size="sm" variant="outline" className="h-8 text-xs px-3">
-            + Follow
+          <Button 
+            size="sm" 
+            variant={isFollowingCreator ? "outline" : "default"}
+            className="h-8 text-xs px-3"
+            onClick={handleFollow}
+          >
+            {isFollowingCreator ? (
+              <>
+                <UserCheck className="h-3.5 w-3.5 mr-1" />
+                Following
+              </>
+            ) : (
+              <>
+                <UserPlus className="h-3.5 w-3.5 mr-1" />
+                Follow
+              </>
+            )}
           </Button>
         </div>
 

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useUserProfile } from "@/hooks/use-user-profile";
+import { useFollowing } from "@/hooks/use-following";
 
 const recentlyViewed = [
   {
@@ -28,6 +29,7 @@ const Profile = () => {
   const [editOpen, setEditOpen] = useState(false);
   const { savedSummaries } = useSavedSummaries();
   const { profile, updateProfile } = useUserProfile();
+  const { following } = useFollowing();
   
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -76,7 +78,7 @@ const Profile = () => {
               <p className="text-xs text-muted-foreground">Read</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-bold text-foreground">12</p>
+              <p className="text-xl font-bold text-foreground">{following.length}</p>
               <p className="text-xs text-muted-foreground">Following</p>
             </div>
           </div>

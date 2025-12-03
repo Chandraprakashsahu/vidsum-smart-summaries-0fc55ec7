@@ -1,23 +1,40 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import BottomNav from "@/components/BottomNav";
+
+// Demo summary data - in real app this would come from API
+const summaryData = {
+  id: "1",
+  title: "The Future of AI and Machine Learning in 2024",
+  channel: "Tech Insights",
+  thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop",
+  readTime: 5,
+  listenTime: 7,
+  category: "Technology",
+};
 
 const Summary = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
   const { toast } = useToast();
+  const { isSaved, toggleSave } = useSavedSummaries();
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState([0]);
-  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  // Use the id from URL params, fallback to demo data
+  const currentSummary = { ...summaryData, id: id || summaryData.id };
+  const isBookmarked = isSaved(currentSummary.id);
 
   // Scroll to top when page loads
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+  }, [id]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -26,12 +43,12 @@ const Summary = () => {
   };
 
   const handleBookmark = () => {
-    setIsBookmarked(!isBookmarked);
+    const wasSaved = toggleSave(currentSummary);
     toast({
-      title: isBookmarked ? "Removed from saved" : "Saved!",
-      description: isBookmarked 
-        ? "Summary removed from your library" 
-        : "Summary added to your library",
+      title: wasSaved ? "Saved!" : "Removed from saved",
+      description: wasSaved 
+        ? "Summary added to your library" 
+        : "Summary removed from your library",
       duration: 2000,
     });
   };
@@ -69,7 +86,7 @@ const Summary = () => {
         {/* Video Thumbnail */}
         <div className="relative aspect-video rounded-xl overflow-hidden mb-4 shadow-md group">
           <img
-            src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop"
+            src={currentSummary.thumbnail}
             alt="Video thumbnail"
             className="w-full h-full object-cover"
           />
@@ -82,18 +99,18 @@ const Summary = () => {
 
         {/* Title */}
         <h1 className="text-lg sm:text-xl font-bold mb-3 text-foreground leading-snug">
-          The Future of AI and Machine Learning in 2024
+          {currentSummary.title}
         </h1>
 
         {/* Creator Bar */}
         <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Avatar className="h-9 w-9">
-              <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Tech" />
-              <AvatarFallback>TI</AvatarFallback>
+              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentSummary.channel}`} />
+              <AvatarFallback>{currentSummary.channel[0]}</AvatarFallback>
             </Avatar>
             <div>
-              <p className="text-sm font-medium text-foreground">Tech Insights</p>
+              <p className="text-sm font-medium text-foreground">{currentSummary.channel}</p>
               <p className="text-xs text-muted-foreground">1.2M subscribers</p>
             </div>
           </div>

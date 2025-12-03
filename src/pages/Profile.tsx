@@ -1,4 +1,5 @@
 import { Settings, Bookmark, Clock, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 import SummaryCard from "@/components/SummaryCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +41,8 @@ const recentlyViewed = [
 ];
 
 const Profile = () => {
+  const navigate = useNavigate();
+  
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Top Bar */}
@@ -53,7 +56,10 @@ const Profile = () => {
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            <button className="p-2 hover:bg-muted rounded-lg transition-colors">
+            <button 
+              onClick={() => navigate('/settings')}
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
+            >
               <Settings className="h-5 w-5 text-foreground" />
             </button>
           </div>

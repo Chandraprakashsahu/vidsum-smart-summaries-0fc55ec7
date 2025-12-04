@@ -8,19 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useFollowing } from "@/hooks/use-following";
 import { useRecentSummaries } from "@/hooks/use-recent-summaries";
+import { getSummaryById, summariesData } from "@/data/summaries";
 import BottomNav from "@/components/BottomNav";
-
-// Demo summary data - in real app this would come from API
-const summaryData = {
-  id: "1",
-  title: "The Future of AI and Machine Learning in 2024",
-  channel: "Tech Insights",
-  thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop",
-  readTime: 5,
-  listenTime: 7,
-  category: "Technology",
-  subscribers: "1.2M",
-};
 
 const Summary = () => {
   const navigate = useNavigate();
@@ -32,25 +21,25 @@ const Summary = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState([0]);
 
-  // Use the id from URL params, fallback to demo data
-  const currentSummary = { ...summaryData, id: id || summaryData.id };
-  const isBookmarked = isSaved(currentSummary.id);
-  const isFollowingCreator = isFollowing(currentSummary.channel);
+  // Get summary data based on ID
+  const summaryData = getSummaryById(id || "1") || summariesData[0];
+  const isBookmarked = isSaved(summaryData.id);
+  const isFollowingCreator = isFollowing(summaryData.channel);
 
   // Scroll to top and track as read when page loads
   useEffect(() => {
     window.scrollTo(0, 0);
     // Add to recently viewed
     addToRecent({
-      id: currentSummary.id,
-      title: currentSummary.title,
-      channel: currentSummary.channel,
-      thumbnail: currentSummary.thumbnail,
-      readTime: currentSummary.readTime,
-      listenTime: currentSummary.listenTime,
-      category: currentSummary.category,
+      id: summaryData.id,
+      title: summaryData.title,
+      channel: summaryData.channel,
+      thumbnail: summaryData.thumbnail,
+      readTime: summaryData.readTime,
+      listenTime: summaryData.listenTime,
+      category: summaryData.category,
     });
-  }, [id]);
+  }, [id, summaryData.id]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -59,7 +48,16 @@ const Summary = () => {
   };
 
   const handleBookmark = () => {
-    const wasSaved = toggleSave(currentSummary);
+    const summaryToSave = {
+      id: summaryData.id,
+      title: summaryData.title,
+      channel: summaryData.channel,
+      thumbnail: summaryData.thumbnail,
+      readTime: summaryData.readTime,
+      listenTime: summaryData.listenTime,
+      category: summaryData.category,
+    };
+    const wasSaved = toggleSave(summaryToSave);
     toast({
       title: wasSaved ? "Saved!" : "Removed from saved",
       description: wasSaved 
@@ -71,20 +69,49 @@ const Summary = () => {
 
   const handleFollow = () => {
     const creator = {
-      id: currentSummary.channel.toLowerCase().replace(/\s/g, '-'),
-      name: currentSummary.channel,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentSummary.channel}`,
-      subscribers: currentSummary.subscribers,
+      id: summaryData.channel.toLowerCase().replace(/\s/g, '-'),
+      name: summaryData.channel,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${summaryData.channel}`,
+      subscribers: summaryData.subscribers,
     };
     const nowFollowing = toggleFollow(creator);
     toast({
       title: nowFollowing ? "Following!" : "Unfollowed",
       description: nowFollowing 
-        ? `You are now following ${currentSummary.channel}` 
-        : `You unfollowed ${currentSummary.channel}`,
+        ? `You are now following ${summaryData.channel}` 
+        : `You unfollowed ${summaryData.channel}`,
       duration: 2000,
     });
   };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: summaryData.title,
+      text: `Check out this summary: ${summaryData.title}`,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        toast({
+          title: "Link Copied!",
+          description: "Summary link copied to clipboard",
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      // User cancelled share
+    }
+  };
+
+  const handleWatchYouTube = () => {
+    window.open(summaryData.youtubeUrl, '_blank');
+  };
+
+  const totalSeconds = summaryData.listenTime * 60;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -98,7 +125,10 @@ const Summary = () => {
             <ArrowLeft className="h-5 w-5 text-foreground" />
           </button>
           <div className="flex items-center gap-1">
-            <button className="p-2 hover:bg-muted rounded-full transition-smooth">
+            <button 
+              onClick={handleShare}
+              className="p-2 hover:bg-muted rounded-full transition-smooth"
+            >
               <Share2 className="h-5 w-5 text-foreground" />
             </button>
             <button
@@ -119,12 +149,15 @@ const Summary = () => {
         {/* Video Thumbnail */}
         <div className="relative aspect-video rounded-xl overflow-hidden mb-4 shadow-md group">
           <img
-            src={currentSummary.thumbnail}
+            src={summaryData.thumbnail}
             alt="Video thumbnail"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex items-center justify-center">
-            <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center cursor-pointer hover:bg-primary hover:scale-110 transition-all duration-200 shadow-lg">
+            <div 
+              onClick={handleWatchYouTube}
+              className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center cursor-pointer hover:bg-primary hover:scale-110 transition-all duration-200 shadow-lg"
+            >
               <Play className="h-6 w-6 text-primary-foreground ml-1" />
             </div>
           </div>
@@ -132,19 +165,19 @@ const Summary = () => {
 
         {/* Title */}
         <h1 className="text-lg sm:text-xl font-bold mb-3 text-foreground leading-snug">
-          {currentSummary.title}
+          {summaryData.title}
         </h1>
 
         {/* Creator Bar */}
         <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Avatar className="h-9 w-9">
-              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentSummary.channel}`} />
-              <AvatarFallback>{currentSummary.channel[0]}</AvatarFallback>
+              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${summaryData.channel}`} />
+              <AvatarFallback>{summaryData.channel[0]}</AvatarFallback>
             </Avatar>
             <div>
-              <p className="text-sm font-medium text-foreground">{currentSummary.channel}</p>
-              <p className="text-xs text-muted-foreground">{currentSummary.subscribers} subscribers</p>
+              <p className="text-sm font-medium text-foreground">{summaryData.channel}</p>
+              <p className="text-xs text-muted-foreground">{summaryData.subscribers} subscribers</p>
             </div>
           </div>
           <Button 
@@ -184,13 +217,13 @@ const Summary = () => {
               <Slider
                 value={progress}
                 onValueChange={setProgress}
-                max={420}
+                max={totalSeconds}
                 step={1}
                 className="w-full"
               />
             </div>
             <span className="text-xs text-muted-foreground font-medium tabular-nums">
-              {formatTime(progress[0])} / 07:00
+              {formatTime(progress[0])} / {formatTime(totalSeconds)}
             </span>
           </div>
         </div>
@@ -204,62 +237,34 @@ const Summary = () => {
           
           <div className="space-y-3 text-foreground/85 text-sm leading-relaxed">
             <p className="text-muted-foreground">
-              आर्टिफिशियल इंटेलिजेंस (AI) और मशीन लर्निंग 2024 में तकनीक के सबसे महत्वपूर्ण क्षेत्र बन गए हैं।
+              {summaryData.content.intro}
             </p>
 
-            <div className="bg-muted/50 rounded-lg p-3">
-              <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">1</span>
-                जेनरेटिव AI का विकास
-              </h3>
-              <ul className="space-y-1 text-xs text-muted-foreground pl-7">
-                <li>• ChatGPT और DALL-E ने कंटेंट क्रिएशन में क्रांति लाई</li>
-                <li>• टेक्स्ट, इमेज और वीडियो जेनरेशन आसान हो गया</li>
-                <li>• व्यवसायों में ऑटोमेशन बढ़ रहा है</li>
-              </ul>
-            </div>
-
-            <div className="bg-muted/50 rounded-lg p-3">
-              <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">2</span>
-                एथिकल AI और रेगुलेशन
-              </h3>
-              <ul className="space-y-1 text-xs text-muted-foreground pl-7">
-                <li>• AI में नैतिकता और पारदर्शिता महत्वपूर्ण</li>
-                <li>• सरकारें AI रेगुलेशन पर काम कर रही हैं</li>
-                <li>• डेटा प्राइवेसी प्राथमिकता है</li>
-              </ul>
-            </div>
-
-            <div className="bg-muted/50 rounded-lg p-3">
-              <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">3</span>
-                रोजगार पर प्रभाव
-              </h3>
-              <ul className="space-y-1 text-xs text-muted-foreground pl-7">
-                <li>• नई नौकरियां और अवसर बन रहे हैं</li>
-                <li>• AI स्किल्स की मांग बढ़ रही है</li>
-                <li>• मानव-AI सहयोग भविष्य का मॉडल</li>
-              </ul>
-            </div>
-
-            <div className="bg-muted/50 rounded-lg p-3">
-              <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">4</span>
-                व्यावहारिक उपयोग
-              </h3>
-              <ul className="space-y-1 text-xs text-muted-foreground pl-7">
-                <li>• स्वास्थ्य में रोग निदान</li>
-                <li>• शिक्षा में व्यक्तिगत अनुभव</li>
-                <li>• स्वायत्त वाहन और ट्रैफिक प्रबंधन</li>
-              </ul>
-            </div>
+            {summaryData.content.points.map((point, index) => (
+              <div key={index} className="bg-muted/50 rounded-lg p-3">
+                <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">
+                    {index + 1}
+                  </span>
+                  {point.title}
+                </h3>
+                <ul className="space-y-1 text-xs text-muted-foreground pl-7">
+                  {point.items.map((item, i) => (
+                    <li key={i}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Watch on YouTube Button */}
         <div className="mt-4">
-          <Button className="w-full h-11 text-sm font-semibold" size="lg">
+          <Button 
+            className="w-full h-11 text-sm font-semibold" 
+            size="lg"
+            onClick={handleWatchYouTube}
+          >
             Watch on YouTube
           </Button>
         </div>

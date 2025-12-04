@@ -5,6 +5,7 @@ import BottomNav from "@/components/BottomNav";
 import CategoryPills from "@/components/CategoryPills";
 import SummaryCard from "@/components/SummaryCard";
 import ThemeToggle from "@/components/ThemeToggle";
+import { summariesData } from "@/data/summaries";
 
 const categories = [
   "All",
@@ -15,50 +16,11 @@ const categories = [
   "Podcast",
 ];
 
-const mockSummaries = [
-  {
-    id: "1",
-    title: "The Future of AI and Machine Learning in 2024",
-    channel: "Tech Insights",
-    thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400&h=225&fit=crop",
-    readTime: 5,
-    listenTime: 7,
-    category: "Technology",
-  },
-  {
-    id: "2",
-    title: "Investment Strategies for Beginners: Complete Guide",
-    channel: "Money Masters",
-    thumbnail: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&h=225&fit=crop",
-    readTime: 6,
-    listenTime: 8,
-    category: "Finance",
-  },
-  {
-    id: "3",
-    title: "10 Daily Habits for Better Mental Health",
-    channel: "Wellness Today",
-    thumbnail: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&h=225&fit=crop",
-    readTime: 4,
-    listenTime: 6,
-    category: "Health",
-  },
-  {
-    id: "4",
-    title: "Quantum Computing Explained Simply",
-    channel: "Science Simplified",
-    thumbnail: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400&h=225&fit=crop",
-    readTime: 7,
-    listenTime: 9,
-    category: "Science",
-  },
-];
-
 const Home = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredSummaries = mockSummaries.filter((summary) => {
+  const filteredSummaries = summariesData.filter((summary) => {
     const matchesCategory =
       selectedCategory === "All" || summary.category === selectedCategory;
     const matchesSearch = summary.title

@@ -11,18 +11,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useFollowing } from "@/hooks/use-following";
-
-const recentlyViewed = [
-  {
-    id: "13",
-    title: "10 Daily Habits for Better Mental Health",
-    channel: "Wellness Today",
-    thumbnail: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&h=225&fit=crop",
-    readTime: 4,
-    listenTime: 6,
-    category: "Health",
-  },
-];
+import { useRecentSummaries } from "@/hooks/use-recent-summaries";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -30,6 +19,7 @@ const Profile = () => {
   const { savedSummaries } = useSavedSummaries();
   const { profile, updateProfile } = useUserProfile();
   const { following } = useFollowing();
+  const { recentSummaries, readCount } = useRecentSummaries();
   
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -74,7 +64,7 @@ const Profile = () => {
               <p className="text-xs text-muted-foreground">Saved</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-bold text-foreground">156</p>
+              <p className="text-xl font-bold text-foreground">{readCount}</p>
               <p className="text-xs text-muted-foreground">Read</p>
             </div>
             <div className="text-center">
@@ -112,9 +102,17 @@ const Profile = () => {
           </TabsContent>
 
           <TabsContent value="recent" className="space-y-3">
-            {recentlyViewed.map((summary) => (
-              <SummaryCard key={summary.id} {...summary} />
-            ))}
+            {recentSummaries.length > 0 ? (
+              recentSummaries.map((summary) => (
+                <SummaryCard key={summary.id} {...summary} />
+              ))
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <Clock className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No recent summaries</p>
+                <p className="text-xs mt-1">Summaries you read will appear here</p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>

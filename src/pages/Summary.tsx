@@ -7,6 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useFollowing } from "@/hooks/use-following";
+import { useRecentSummaries } from "@/hooks/use-recent-summaries";
 import BottomNav from "@/components/BottomNav";
 
 // Demo summary data - in real app this would come from API
@@ -27,6 +28,7 @@ const Summary = () => {
   const { toast } = useToast();
   const { isSaved, toggleSave } = useSavedSummaries();
   const { isFollowing, toggleFollow } = useFollowing();
+  const { addToRecent } = useRecentSummaries();
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState([0]);
 
@@ -35,9 +37,19 @@ const Summary = () => {
   const isBookmarked = isSaved(currentSummary.id);
   const isFollowingCreator = isFollowing(currentSummary.channel);
 
-  // Scroll to top when page loads
+  // Scroll to top and track as read when page loads
   useEffect(() => {
     window.scrollTo(0, 0);
+    // Add to recently viewed
+    addToRecent({
+      id: currentSummary.id,
+      title: currentSummary.title,
+      channel: currentSummary.channel,
+      thumbnail: currentSummary.thumbnail,
+      readTime: currentSummary.readTime,
+      listenTime: currentSummary.listenTime,
+      category: currentSummary.category,
+    });
   }, [id]);
 
   const formatTime = (seconds: number) => {

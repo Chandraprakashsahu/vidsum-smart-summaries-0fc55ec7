@@ -184,18 +184,18 @@ const Summary = () => {
       </header>
 
       <main className="container px-4 py-4 max-w-2xl">
-        {/* Video Thumbnail */}
-        <div className="relative aspect-video rounded-xl overflow-hidden mb-4 shadow-md group">
+        {/* Video Thumbnail - Clickable to open YouTube */}
+        <div 
+          className="relative aspect-video rounded-xl overflow-hidden mb-4 shadow-md group cursor-pointer"
+          onClick={handleWatchYouTube}
+        >
           <img
             src={summaryData.thumbnail}
             alt="Video thumbnail"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex items-center justify-center">
-            <div 
-              onClick={handleWatchYouTube}
-              className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center cursor-pointer hover:bg-primary hover:scale-110 transition-all duration-200 shadow-lg"
-            >
+            <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center group-hover:bg-primary group-hover:scale-110 transition-all duration-200 shadow-lg">
               <Play className="h-6 w-6 text-primary-foreground ml-1" />
             </div>
           </div>

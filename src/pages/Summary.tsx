@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck, UserPlus, UserCheck } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useFollowing } from "@/hooks/use-following";
 import { useRecentSummaries } from "@/hooks/use-recent-summaries";
-import { getSummaryById, summariesData } from "@/data/summaries";
+import { useSpeech } from "@/hooks/use-speech";
+import { getSummaryById, summariesData, SummaryData } from "@/data/summaries";
 import BottomNav from "@/components/BottomNav";
 
 const Summary = () => {
@@ -18,13 +19,43 @@ const Summary = () => {
   const { isSaved, toggleSave } = useSavedSummaries();
   const { isFollowing, toggleFollow } = useFollowing();
   const { addToRecent } = useRecentSummaries();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState([0]);
+  const { isPlaying, progress, duration, toggle, stop } = useSpeech();
 
-  // Get summary data based on ID
-  const summaryData = getSummaryById(id || "1") || summariesData[0];
+  // Get summary data - check generated summaries first, then static data
+  const summaryData = useMemo(() => {
+    // Check if it's a generated summary
+    if (id?.startsWith("generated-")) {
+      const generatedSummaries = JSON.parse(localStorage.getItem("generatedSummaries") || "[]");
+      const found = generatedSummaries.find((s: any) => `generated-${s.id}` === id);
+      if (found) {
+        return {
+          ...found,
+          content: {
+            intro: found.intro,
+            points: found.points,
+          },
+        } as SummaryData;
+      }
+    }
+    
+    // Fall back to static data
+    return getSummaryById(id || "1") || summariesData[0];
+  }, [id]);
+
   const isBookmarked = isSaved(summaryData.id);
   const isFollowingCreator = isFollowing(summaryData.channel);
+
+  // Build speech text from content
+  const speechText = useMemo(() => {
+    let text = summaryData.content.intro + ". ";
+    summaryData.content.points.forEach((point, i) => {
+      text += `Point ${i + 1}: ${point.title}. `;
+      point.items.forEach(item => {
+        text += item + ". ";
+      });
+    });
+    return text;
+  }, [summaryData]);
 
   // Scroll to top and track as read when page loads
   useEffect(() => {
@@ -39,11 +70,14 @@ const Summary = () => {
       listenTime: summaryData.listenTime,
       category: summaryData.category,
     });
+    
+    // Stop speech when leaving
+    return () => stop();
   }, [id, summaryData.id]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
@@ -111,7 +145,11 @@ const Summary = () => {
     window.open(summaryData.youtubeUrl, '_blank');
   };
 
-  const totalSeconds = summaryData.listenTime * 60;
+  const handleAudioToggle = () => {
+    toggle(speechText);
+  };
+
+  const totalSeconds = duration || summaryData.listenTime * 60;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -204,7 +242,7 @@ const Summary = () => {
         <div className="sticky top-14 z-10 bg-card border border-border rounded-xl p-3 mb-4 shadow-sm">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={handleAudioToggle}
               className="w-9 h-9 rounded-full bg-primary hover:bg-primary/90 flex items-center justify-center transition-smooth flex-shrink-0"
             >
               {isPlaying ? (
@@ -215,15 +253,14 @@ const Summary = () => {
             </button>
             <div className="flex-1">
               <Slider
-                value={progress}
-                onValueChange={setProgress}
+                value={[progress]}
                 max={totalSeconds}
                 step={1}
                 className="w-full"
               />
             </div>
             <span className="text-xs text-muted-foreground font-medium tabular-nums">
-              {formatTime(progress[0])} / {formatTime(totalSeconds)}
+              {formatTime(progress)} / {formatTime(totalSeconds)}
             </span>
           </div>
         </div>

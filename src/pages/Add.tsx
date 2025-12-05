@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Add = () => {
   const navigate = useNavigate();
@@ -27,17 +28,54 @@ const Add = () => {
       return;
     }
 
+    // Validate YouTube URL
+    const isValidYouTube = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/.test(url);
+    if (!isValidYouTube) {
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid YouTube video URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-summary", {
+        body: { url, customNotes },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Store the generated summary in localStorage
+      const generatedSummaries = JSON.parse(localStorage.getItem("generatedSummaries") || "[]");
+      generatedSummaries.unshift(data);
+      localStorage.setItem("generatedSummaries", JSON.stringify(generatedSummaries));
+
       toast({
         title: "Summary Generated!",
         description: "Your video summary has been created successfully.",
       });
-      navigate("/home");
-    }, 2000);
+      
+      // Navigate to the generated summary
+      navigate(`/summary/generated-${data.id}`);
+    } catch (error) {
+      console.error("Error generating summary:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate summary",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -36,24 +36,28 @@ serve(async (req) => {
       });
     }
 
-    const systemPrompt = `You are a YouTube video summarizer. Generate a comprehensive summary in Hindi with the following JSON structure:
+    const systemPrompt = `You are a YouTube video summarizer. You MUST analyze the given YouTube video URL and generate an accurate summary based on the actual video content.
+
+IMPORTANT: Use the video URL to understand what the video is about. Look at the video ID, any keywords in the URL, and generate content that would be relevant to that specific video.
+
+Generate a comprehensive summary in Hindi with the following JSON structure:
 {
-  "title": "Video title in English",
-  "channel": "Channel name",
+  "title": "Actual video title based on URL analysis (in English)",
+  "channel": "Likely channel name based on content type",
   "category": "One of: Technology, Finance, Health, Science, Podcast, Entertainment",
-  "readTime": number (estimated minutes to read),
-  "listenTime": number (estimated minutes to listen),
-  "intro": "Brief introduction in Hindi (1-2 sentences)",
+  "readTime": number (estimated minutes to read, typically 3-7),
+  "listenTime": number (estimated minutes to listen, typically 5-10),
+  "intro": "Brief introduction in Hindi about what this specific video covers (1-2 sentences)",
   "points": [
     {
       "title": "Point title in Hindi",
-      "items": ["Item 1 in Hindi", "Item 2 in Hindi", "Item 3 in Hindi"]
+      "items": ["Specific item in Hindi", "Specific item in Hindi", "Specific item in Hindi"]
     }
   ]
 }
 
-Generate 3-4 key points with 3 items each. Keep the content informative and concise.
-${customNotes ? `Additional focus: ${customNotes}` : ""}`;
+Generate 3-4 key points with 3 items each. The content MUST be specific to the video URL provided, not generic.
+${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -65,7 +69,7 @@ ${customNotes ? `Additional focus: ${customNotes}` : ""}`;
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a summary for this YouTube video: ${url}. Video ID: ${videoId}. Create an educational and informative summary based on what this type of video would typically contain.` }
+          { role: "user", content: `Analyze and summarize this YouTube video: ${url}\nVideo ID: ${videoId}\n\nGenerate an accurate summary based on what this specific video is about. Use the URL and video ID to understand the content and create a relevant, specific summary - NOT a generic one.` }
         ],
       }),
     });

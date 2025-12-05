@@ -5,6 +5,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Fetch actual video metadata from YouTube oEmbed API
+async function fetchVideoMetadata(url: string): Promise<{ title: string; author: string } | null> {
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const response = await fetch(oembedUrl);
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        title: data.title || "Unknown Title",
+        author: data.author_name || "Unknown Channel",
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching video metadata:", error);
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -36,18 +54,21 @@ serve(async (req) => {
       });
     }
 
-    const systemPrompt = `You are a YouTube video summarizer. You MUST analyze the given YouTube video URL and generate an accurate summary based on the actual video content.
+    // Fetch actual video metadata from YouTube
+    const metadata = await fetchVideoMetadata(url);
+    console.log("Video metadata:", metadata);
 
-IMPORTANT: Use the video URL to understand what the video is about. Look at the video ID, any keywords in the URL, and generate content that would be relevant to that specific video.
+    const actualTitle = metadata?.title || "Unknown Video";
+    const actualChannel = metadata?.author || "Unknown Channel";
 
-Generate a comprehensive summary in Hindi with the following JSON structure:
+    const systemPrompt = `You are a YouTube video summarizer. Generate a comprehensive summary for the video titled "${actualTitle}" by "${actualChannel}".
+
+Generate the summary in Hindi with the following JSON structure:
 {
-  "title": "Actual video title based on URL analysis (in English)",
-  "channel": "Likely channel name based on content type",
   "category": "One of: Technology, Finance, Health, Science, Podcast, Entertainment",
   "readTime": number (estimated minutes to read, typically 3-7),
   "listenTime": number (estimated minutes to listen, typically 5-10),
-  "intro": "Brief introduction in Hindi about what this specific video covers (1-2 sentences)",
+  "intro": "Brief introduction in Hindi about this video (1-2 sentences)",
   "points": [
     {
       "title": "Point title in Hindi",
@@ -56,7 +77,7 @@ Generate a comprehensive summary in Hindi with the following JSON structure:
   ]
 }
 
-Generate 3-4 key points with 3 items each. The content MUST be specific to the video URL provided, not generic.
+Generate 3-4 key points with 3 items each. Create content specifically relevant to: "${actualTitle}"
 ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -69,7 +90,7 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze and summarize this YouTube video: ${url}\nVideo ID: ${videoId}\n\nGenerate an accurate summary based on what this specific video is about. Use the URL and video ID to understand the content and create a relevant, specific summary - NOT a generic one.` }
+          { role: "user", content: `Create a detailed summary for this YouTube video:\nTitle: ${actualTitle}\nChannel: ${actualChannel}\nURL: ${url}` }
         ],
       }),
     });
@@ -102,7 +123,6 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
     // Parse the JSON from the response
     let summary;
     try {
-      // Extract JSON from the response (it might be wrapped in markdown code blocks)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         summary = JSON.parse(jsonMatch[0]);
@@ -111,10 +131,7 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
       }
     } catch (parseError) {
       console.error("Parse error:", parseError);
-      // Return a default structure if parsing fails
       summary = {
-        title: "Video Summary",
-        channel: "Unknown Channel",
         category: "Technology",
         readTime: 5,
         listenTime: 7,
@@ -128,8 +145,10 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
       };
     }
 
-    // Add video metadata
+    // Add actual video metadata
     summary.id = `gen-${Date.now()}`;
+    summary.title = actualTitle;
+    summary.channel = actualChannel;
     summary.videoId = videoId;
     summary.youtubeUrl = url;
     summary.thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;

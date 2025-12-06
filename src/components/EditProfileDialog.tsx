@@ -1,16 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface EditProfileDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profile: { name: string; email: string; avatar: string };
-  onSave: (updates: { name: string; email: string; avatar: string }) => void;
+  onSave: (updates: { name: string; email: string; avatar: string }) => Promise<void> | void;
 }
 
 const avatarSeeds = ["User", "Felix", "Aneka", "Bailey", "Cleo", "Dusty", "Milo", "Bubbles"];
@@ -20,15 +21,30 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onSave }: EditProfileD
   const [name, setName] = useState(profile.name);
   const [email, setEmail] = useState(profile.email);
   const [avatar, setAvatar] = useState(profile.avatar);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  // Sync state when profile changes
+  useEffect(() => {
+    setName(profile.name);
+    setEmail(profile.email);
+    setAvatar(profile.avatar);
+  }, [profile]);
+
+  const handleSave = async () => {
     if (!name.trim()) {
       toast({ title: "Name required", variant: "destructive" });
       return;
     }
-    onSave({ name: name.trim(), email: email.trim(), avatar });
-    toast({ title: "Profile updated!", duration: 2000 });
-    onOpenChange(false);
+    setSaving(true);
+    try {
+      await onSave({ name: name.trim(), email: email.trim(), avatar });
+      toast({ title: "Profile updated!", duration: 2000 });
+      onOpenChange(false);
+    } catch (error) {
+      toast({ title: "Failed to update profile", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -85,10 +101,13 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onSave }: EditProfileD
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Save
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

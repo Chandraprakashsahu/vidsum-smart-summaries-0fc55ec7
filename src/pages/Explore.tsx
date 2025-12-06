@@ -4,6 +4,8 @@ import BottomNav from "@/components/BottomNav";
 import CategoryPills from "@/components/CategoryPills";
 import SummaryCard from "@/components/SummaryCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSummaries, calculateReadTime, calculateListenTime } from "@/hooks/use-summaries";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const categories = [
   "All",
@@ -14,55 +16,51 @@ const categories = [
   "Podcast",
 ];
 
-const trendingSummaries = [
-  {
-    id: "5",
-    title: "Breaking: Major AI Breakthrough Announced",
-    channel: "Tech News Daily",
-    thumbnail: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=400&h=225&fit=crop",
-    readTime: 4,
-    listenTime: 6,
-    category: "Technology",
-  },
-  {
-    id: "6",
-    title: "Stock Market Analysis: What You Need to Know",
-    channel: "Financial Times",
-    thumbnail: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=400&h=225&fit=crop",
-    readTime: 5,
-    listenTime: 7,
-    category: "Finance",
-  },
-];
-
-const curatedCollections = [
-  {
-    title: "Best of Tech 2024",
-    summaries: [
-      {
-        id: "7",
-        title: "How AI is Transforming Healthcare",
-        channel: "Medical Insights",
-        thumbnail: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=225&fit=crop",
-        readTime: 6,
-        listenTime: 8,
-        category: "Health",
-      },
-      {
-        id: "8",
-        title: "The Rise of Quantum Computing",
-        channel: "Future Tech",
-        thumbnail: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=225&fit=crop",
-        readTime: 7,
-        listenTime: 9,
-        category: "Technology",
-      },
-    ],
-  },
-];
-
 const Explore = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const { summaries, loading } = useSummaries();
+
+  // Filter summaries by category
+  const filteredSummaries = selectedCategory === "All" 
+    ? summaries 
+    : summaries.filter(s => s.category === selectedCategory);
+
+  // Get trending (most recent) summaries
+  const trendingSummaries = [...summaries]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 10);
+
+  // Create collections by category
+  const techSummaries = summaries.filter(s => s.category === "Technology").slice(0, 5);
+  const financeSummaries = summaries.filter(s => s.category === "Finance").slice(0, 5);
+
+  const renderSummaryCard = (summary: typeof summaries[0]) => (
+    <SummaryCard
+      key={summary.id}
+      id={summary.id}
+      title={summary.title}
+      channel={summary.channel?.name || "Unknown"}
+      channelLogo={summary.channel?.logo_url}
+      thumbnail={summary.thumbnail || "https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=400&h=225&fit=crop"}
+      readTime={summary.read_time_minutes || calculateReadTime(summary.intro, summary.key_points as any)}
+      listenTime={summary.listen_time_minutes || calculateListenTime(summary.intro, summary.key_points as any)}
+    />
+  );
+
+  const LoadingSkeleton = () => (
+    <div className="space-y-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex gap-4 p-3 rounded-xl bg-card">
+          <Skeleton className="w-32 h-20 rounded-lg flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -99,27 +97,54 @@ const Explore = () => {
                 <TrendingUp className="h-5 w-5 text-primary" />
                 Trending Now
               </h2>
-              <div className="space-y-4">
-                {trendingSummaries.map((summary) => (
-                  <SummaryCard key={summary.id} {...summary} />
-                ))}
-              </div>
+              {loading ? (
+                <LoadingSkeleton />
+              ) : trendingSummaries.length > 0 ? (
+                <div className="space-y-4">
+                  {trendingSummaries.map(renderSummaryCard)}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>No summaries available yet</p>
+                  <p className="text-sm mt-1">Check back later for trending content</p>
+                </div>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="collections" className="space-y-6">
-            {curatedCollections.map((collection, idx) => (
-              <div key={idx}>
-                <h2 className="text-lg font-semibold mb-4 text-foreground">
-                  {collection.title}
-                </h2>
-                <div className="space-y-4">
-                  {collection.summaries.map((summary) => (
-                    <SummaryCard key={summary.id} {...summary} />
-                  ))}
-                </div>
-              </div>
-            ))}
+            {loading ? (
+              <LoadingSkeleton />
+            ) : (
+              <>
+                {techSummaries.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-semibold mb-4 text-foreground">
+                      Best of Tech
+                    </h2>
+                    <div className="space-y-4">
+                      {techSummaries.map(renderSummaryCard)}
+                    </div>
+                  </div>
+                )}
+                {financeSummaries.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-semibold mb-4 text-foreground">
+                      Finance Insights
+                    </h2>
+                    <div className="space-y-4">
+                      {financeSummaries.map(renderSummaryCard)}
+                    </div>
+                  </div>
+                )}
+                {techSummaries.length === 0 && financeSummaries.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <p>No collections available yet</p>
+                    <p className="text-sm mt-1">Collections will appear as more content is added</p>
+                  </div>
+                )}
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="categories">
@@ -129,15 +154,16 @@ const Explore = () => {
               onSelect={setSelectedCategory}
             />
             <div className="mt-6 space-y-4">
-              {trendingSummaries
-                .filter(
-                  (s) =>
-                    selectedCategory === "All" ||
-                    s.category === selectedCategory
-                )
-                .map((summary) => (
-                  <SummaryCard key={summary.id} {...summary} />
-                ))}
+              {loading ? (
+                <LoadingSkeleton />
+              ) : filteredSummaries.length > 0 ? (
+                filteredSummaries.map(renderSummaryCard)
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>No summaries in this category</p>
+                  <p className="text-sm mt-1">Try selecting a different category</p>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>

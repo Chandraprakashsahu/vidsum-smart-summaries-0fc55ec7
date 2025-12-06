@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useRecentSummaries } from "@/hooks/use-recent-summaries";
 import { useSpeech } from "@/hooks/use-speech";
-import { useChannels } from "@/hooks/use-channels";
+import { useFollowing } from "@/hooks/use-following";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSummaryById, summariesData, SummaryData } from "@/data/summaries";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +40,7 @@ const Summary = () => {
   const { isSaved, toggleSave } = useSavedSummaries();
   const { addToRecent } = useRecentSummaries();
   const { isPlaying, progress, duration, toggle, stop } = useSpeech();
-  const { isFollowing, toggleFollow } = useChannels();
+  const { isFollowing, toggleFollow } = useFollowing();
 
   const [dbSummary, setDbSummary] = useState<DbSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,6 +155,7 @@ const Summary = () => {
         id: summaryData.id,
         title: summaryData.title,
         channel: summaryData.channel,
+        channelLogo: summaryData.channelLogo,
         thumbnail: summaryData.thumbnail,
         readTime: summaryData.readTime,
         listenTime: summaryData.listenTime,
@@ -177,6 +178,7 @@ const Summary = () => {
       id: summaryData.id,
       title: summaryData.title,
       channel: summaryData.channel,
+      channelLogo: summaryData.channelLogo,
       thumbnail: summaryData.thumbnail,
       readTime: summaryData.readTime,
       listenTime: summaryData.listenTime,

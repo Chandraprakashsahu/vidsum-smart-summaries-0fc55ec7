@@ -4,6 +4,7 @@ export interface RecentSummary {
   id: string;
   title: string;
   channel: string;
+  channelLogo?: string | null;
   thumbnail: string;
   readTime: number;
   listenTime: number;

@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 // Fetch actual video metadata from YouTube oEmbed API
-async function fetchVideoMetadata(url: string): Promise<{ title: string; author: string } | null> {
+async function fetchVideoMetadata(url: string): Promise<{ title: string; author: string; authorUrl?: string; thumbnailUrl?: string } | null> {
   try {
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
     const response = await fetch(oembedUrl);
@@ -15,10 +15,32 @@ async function fetchVideoMetadata(url: string): Promise<{ title: string; author:
       return {
         title: data.title || "Unknown Title",
         author: data.author_name || "Unknown Channel",
+        authorUrl: data.author_url || null,
+        thumbnailUrl: data.thumbnail_url || null,
       };
     }
   } catch (error) {
     console.error("Error fetching video metadata:", error);
+  }
+  return null;
+}
+
+// Try to get the channel logo from various sources
+async function fetchChannelLogo(channelName: string, authorUrl?: string): Promise<string | null> {
+  try {
+    // If we have the channel URL, we can try to get the channel ID and logo
+    if (authorUrl) {
+      // Extract channel handle or ID from author URL
+      // YouTube oEmbed gives us something like https://www.youtube.com/@ChannelHandle
+      const handleMatch = authorUrl.match(/@([^/]+)/);
+      if (handleMatch) {
+        // Unfortunately, we can't easily get the channel logo without YouTube Data API
+        // For now, return null and we'll use a generated avatar
+        return null;
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching channel logo:", error);
   }
   return null;
 }
@@ -60,6 +82,9 @@ serve(async (req) => {
 
     const actualTitle = metadata?.title || "Unknown Video";
     const actualChannel = metadata?.author || "Unknown Channel";
+    
+    // Try to get channel logo
+    const channelLogo = await fetchChannelLogo(actualChannel, metadata?.authorUrl);
 
     const systemPrompt = `You are a YouTube video summarizer. Generate a comprehensive summary for the video titled "${actualTitle}" by "${actualChannel}".
 
@@ -149,6 +174,7 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
     summary.id = `gen-${Date.now()}`;
     summary.title = actualTitle;
     summary.channel = actualChannel;
+    summary.channelLogo = channelLogo; // Will be null for now, but we add the field for future use
     summary.videoId = videoId;
     summary.youtubeUrl = url;
     summary.thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;

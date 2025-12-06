@@ -1,47 +1,135 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
-export interface Creator {
+export interface FollowedChannel {
   id: string;
   name: string;
-  avatar: string;
-  subscribers: string;
+  logo_url: string | null;
+  followers_count: number;
 }
 
-const STORAGE_KEY = "vidsum-following";
+const LOCAL_STORAGE_KEY = "vidsum-following";
 
 export function useFollowing() {
-  const [following, setFollowing] = useState<Creator[]>([]);
+  const { user } = useAuth();
+  const [following, setFollowing] = useState<FollowedChannel[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch followed channels from database
+  const fetchFollowing = useCallback(async () => {
+    if (!user) {
+      // Load from localStorage for guests
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (stored) {
+        try {
+          setFollowing(JSON.parse(stored));
+        } catch {
+          setFollowing([]);
+        }
+      }
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("channel_followers")
+        .select(`
+          channel_id,
+          channels:channel_id(id, name, logo_url, followers_count)
+        `)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Error fetching followed channels:", error);
+        setFollowing([]);
+      } else {
+        const channels = data
+          ?.map((item: any) => item.channels)
+          .filter(Boolean) as FollowedChannel[];
+        setFollowing(channels || []);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setFollowing([]);
+    }
+    setLoading(false);
+  }, [user]);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setFollowing(JSON.parse(stored));
+    fetchFollowing();
+  }, [fetchFollowing]);
+
+  const isFollowing = useCallback((channelId: string) => {
+    return following.some(c => c.id === channelId);
+  }, [following]);
+
+  const followChannel = async (channelId: string) => {
+    if (!user) {
+      // Guest users can't follow
+      return false;
     }
-  }, []);
 
-  const followCreator = (creator: Creator) => {
-    const updated = [...following.filter(c => c.id !== creator.id), creator];
-    setFollowing(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    try {
+      const { error } = await supabase
+        .from("channel_followers")
+        .insert({ user_id: user.id, channel_id: channelId });
+
+      if (error) {
+        console.error("Error following channel:", error);
+        return false;
+      }
+
+      // Refetch to get updated data
+      await fetchFollowing();
+      return true;
+    } catch (error) {
+      console.error("Error:", error);
+      return false;
+    }
   };
 
-  const unfollowCreator = (id: string) => {
-    const updated = following.filter(c => c.id !== id);
-    setFollowing(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  const unfollowChannel = async (channelId: string) => {
+    if (!user) return false;
+
+    try {
+      const { error } = await supabase
+        .from("channel_followers")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("channel_id", channelId);
+
+      if (error) {
+        console.error("Error unfollowing channel:", error);
+        return false;
+      }
+
+      await fetchFollowing();
+      return true;
+    } catch (error) {
+      console.error("Error:", error);
+      return false;
+    }
   };
 
-  const isFollowing = (name: string) => following.some(c => c.name === name);
-
-  const toggleFollow = (creator: Creator) => {
-    if (isFollowing(creator.name)) {
-      unfollowCreator(creator.id);
+  const toggleFollow = async (channelId: string): Promise<boolean> => {
+    if (isFollowing(channelId)) {
+      await unfollowChannel(channelId);
       return false;
     } else {
-      followCreator(creator);
+      await followChannel(channelId);
       return true;
     }
   };
 
-  return { following, followCreator, unfollowCreator, isFollowing, toggleFollow };
+  return { 
+    following, 
+    loading,
+    isFollowing, 
+    followChannel, 
+    unfollowChannel, 
+    toggleFollow,
+    refetch: fetchFollowing
+  };
 }

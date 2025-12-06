@@ -18,6 +18,7 @@ interface GeneratedSummary {
   id: string;
   title: string;
   channel: string;
+  channelLogo?: string | null; // Real YouTube channel logo from API
   category: string;
   thumbnail: string;
   youtubeUrl: string;
@@ -186,10 +187,18 @@ const Add = () => {
 
       if (existingChannel) {
         channelId = existingChannel.id;
+        
+        // Update channel logo if we have a real one from YouTube API
+        if (generatedSummary.channelLogo) {
+          await supabase
+            .from("channels")
+            .update({ logo_url: generatedSummary.channelLogo })
+            .eq("id", existingChannel.id);
+        }
       } else {
-        // Create new channel with logo from dicebear
+        // Create new channel with real logo or fallback to dicebear
         const avatarSeed = generatedSummary.channel.replace(/\s+/g, '');
-        const logoUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
+        const logoUrl = generatedSummary.channelLogo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
         
         const { data: newChannel, error: channelError } = await supabase
           .from("channels")
@@ -266,9 +275,17 @@ const Add = () => {
 
       if (existingChannel) {
         channelId = existingChannel.id;
+        
+        // Update channel logo if we have a real one from YouTube API
+        if (generatedSummary.channelLogo) {
+          await supabase
+            .from("channels")
+            .update({ logo_url: generatedSummary.channelLogo })
+            .eq("id", existingChannel.id);
+        }
       } else {
         const avatarSeed = generatedSummary.channel.replace(/\s+/g, '');
-        const logoUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
+        const logoUrl = generatedSummary.channelLogo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
         
         const { data: newChannel, error } = await supabase
           .from("channels")
@@ -462,7 +479,7 @@ const Add = () => {
             <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border">
               <div className="flex items-center gap-3">
                 <Avatar className="h-12 w-12">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${generatedSummary.channel.replace(/\s+/g, '')}`} />
+                  <AvatarImage src={generatedSummary.channelLogo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${generatedSummary.channel.replace(/\s+/g, '')}`} />
                   <AvatarFallback>{generatedSummary.channel[0]}</AvatarFallback>
                 </Avatar>
                 <div>

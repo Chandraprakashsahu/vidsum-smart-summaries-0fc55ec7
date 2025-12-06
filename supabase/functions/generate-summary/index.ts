@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 // Fetch actual video metadata from YouTube oEmbed API
-async function fetchVideoMetadata(url: string): Promise<{ title: string; author: string; authorUrl?: string; thumbnailUrl?: string } | null> {
+async function fetchVideoMetadata(url: string): Promise<{ title: string; author: string; authorUrl?: string } | null> {
   try {
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
     const response = await fetch(oembedUrl);
@@ -16,7 +16,6 @@ async function fetchVideoMetadata(url: string): Promise<{ title: string; author:
         title: data.title || "Unknown Title",
         author: data.author_name || "Unknown Channel",
         authorUrl: data.author_url || null,
-        thumbnailUrl: data.thumbnail_url || null,
       };
     }
   } catch (error) {
@@ -25,24 +24,60 @@ async function fetchVideoMetadata(url: string): Promise<{ title: string; author:
   return null;
 }
 
-// Try to get the channel logo from various sources
-async function fetchChannelLogo(channelName: string, authorUrl?: string): Promise<string | null> {
+// Fetch channel details including logo using YouTube Data API
+async function fetchChannelDetails(videoId: string, apiKey: string): Promise<{ channelId: string; channelTitle: string; channelLogo: string | null } | null> {
   try {
-    // If we have the channel URL, we can try to get the channel ID and logo
-    if (authorUrl) {
-      // Extract channel handle or ID from author URL
-      // YouTube oEmbed gives us something like https://www.youtube.com/@ChannelHandle
-      const handleMatch = authorUrl.match(/@([^/]+)/);
-      if (handleMatch) {
-        // Unfortunately, we can't easily get the channel logo without YouTube Data API
-        // For now, return null and we'll use a generated avatar
-        return null;
-      }
+    // First, get channel ID from video
+    const videoUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`;
+    console.log("Fetching video details from YouTube API...");
+    
+    const videoResponse = await fetch(videoUrl);
+    if (!videoResponse.ok) {
+      console.error("YouTube API video error:", videoResponse.status, await videoResponse.text());
+      return null;
     }
+    
+    const videoData = await videoResponse.json();
+    const snippet = videoData.items?.[0]?.snippet;
+    
+    if (!snippet) {
+      console.log("No video snippet found");
+      return null;
+    }
+    
+    const channelId = snippet.channelId;
+    const channelTitle = snippet.channelTitle;
+    
+    console.log("Found channel:", channelTitle, "ID:", channelId);
+    
+    // Now fetch channel details to get the logo
+    const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${apiKey}`;
+    const channelResponse = await fetch(channelUrl);
+    
+    if (!channelResponse.ok) {
+      console.error("YouTube API channel error:", channelResponse.status, await channelResponse.text());
+      return { channelId, channelTitle, channelLogo: null };
+    }
+    
+    const channelData = await channelResponse.json();
+    const channelSnippet = channelData.items?.[0]?.snippet;
+    
+    if (!channelSnippet) {
+      console.log("No channel snippet found");
+      return { channelId, channelTitle, channelLogo: null };
+    }
+    
+    // Get the best quality thumbnail available
+    const thumbnails = channelSnippet.thumbnails;
+    const channelLogo = thumbnails?.high?.url || thumbnails?.medium?.url || thumbnails?.default?.url || null;
+    
+    console.log("Channel logo URL:", channelLogo);
+    
+    return { channelId, channelTitle, channelLogo };
   } catch (error) {
-    console.error("Error fetching channel logo:", error);
+    console.error("Error fetching channel details:", error);
+    return null;
   }
-  return null;
 }
 
 serve(async (req) => {
@@ -63,6 +98,8 @@ serve(async (req) => {
     console.log("Generating summary for URL:", url);
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY");
+    
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
@@ -76,15 +113,26 @@ serve(async (req) => {
       });
     }
 
-    // Fetch actual video metadata from YouTube
+    // Fetch actual video metadata from YouTube oEmbed
     const metadata = await fetchVideoMetadata(url);
-    console.log("Video metadata:", metadata);
+    console.log("Video metadata from oEmbed:", metadata);
 
-    const actualTitle = metadata?.title || "Unknown Video";
-    const actualChannel = metadata?.author || "Unknown Channel";
+    let actualTitle = metadata?.title || "Unknown Video";
+    let actualChannel = metadata?.author || "Unknown Channel";
+    let channelLogo: string | null = null;
     
-    // Try to get channel logo
-    const channelLogo = await fetchChannelLogo(actualChannel, metadata?.authorUrl);
+    // Try to get real channel logo using YouTube Data API if API key is available
+    if (YOUTUBE_API_KEY) {
+      console.log("YouTube API key found, fetching channel details...");
+      const channelDetails = await fetchChannelDetails(videoId, YOUTUBE_API_KEY);
+      if (channelDetails) {
+        actualChannel = channelDetails.channelTitle || actualChannel;
+        channelLogo = channelDetails.channelLogo;
+        console.log("Got channel logo:", channelLogo);
+      }
+    } else {
+      console.log("No YouTube API key configured, using fallback avatar");
+    }
 
     const systemPrompt = `You are a YouTube video summarizer. Generate a comprehensive summary for the video titled "${actualTitle}" by "${actualChannel}".
 
@@ -174,13 +222,13 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
     summary.id = `gen-${Date.now()}`;
     summary.title = actualTitle;
     summary.channel = actualChannel;
-    summary.channelLogo = channelLogo; // Will be null for now, but we add the field for future use
+    summary.channelLogo = channelLogo; // Real YouTube channel logo or null
     summary.videoId = videoId;
     summary.youtubeUrl = url;
     summary.thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
     summary.subscribers = "N/A";
 
-    console.log("Generated summary:", summary);
+    console.log("Generated summary with channel logo:", summary.channelLogo);
 
     return new Response(JSON.stringify(summary), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

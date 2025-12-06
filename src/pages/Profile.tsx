@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useUserProfile } from "@/hooks/use-user-profile";
-import { useFollowing } from "@/hooks/use-following";
+import { useFollowing, FollowedChannel } from "@/hooks/use-following";
 import { useRecentSummaries } from "@/hooks/use-recent-summaries";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -116,7 +116,16 @@ const Profile = () => {
           <TabsContent value="saved" className="space-y-3">
             {savedSummaries.length > 0 ? (
               savedSummaries.map((summary) => (
-                <SummaryCard key={summary.id} {...summary} />
+                <SummaryCard 
+                  key={summary.id} 
+                  id={summary.id}
+                  title={summary.title}
+                  channel={summary.channel}
+                  channelLogo={summary.channelLogo}
+                  thumbnail={summary.thumbnail}
+                  readTime={summary.readTime}
+                  listenTime={summary.listenTime}
+                />
               ))
             ) : (
               <div className="text-center py-12 text-muted-foreground">
@@ -130,7 +139,16 @@ const Profile = () => {
           <TabsContent value="recent" className="space-y-3">
             {recentSummaries.length > 0 ? (
               recentSummaries.map((summary) => (
-                <SummaryCard key={summary.id} {...summary} />
+                <SummaryCard 
+                  key={summary.id} 
+                  id={summary.id}
+                  title={summary.title}
+                  channel={summary.channel}
+                  channelLogo={summary.channelLogo}
+                  thumbnail={summary.thumbnail}
+                  readTime={summary.readTime}
+                  listenTime={summary.listenTime}
+                />
               ))
             ) : (
               <div className="text-center py-12 text-muted-foreground">

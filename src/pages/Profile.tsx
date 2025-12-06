@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, Bookmark, Clock, Sparkles } from "lucide-react";
+import { Settings, Bookmark, Clock, Sparkles, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 import SummaryCard from "@/components/SummaryCard";
@@ -12,14 +12,17 @@ import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useFollowing } from "@/hooks/use-following";
 import { useRecentSummaries } from "@/hooks/use-recent-summaries";
+import { useAuth } from "@/contexts/AuthContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Profile = () => {
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
   const { savedSummaries } = useSavedSummaries();
-  const { profile, updateProfile } = useUserProfile();
+  const { profile, updateProfile, loading } = useUserProfile();
   const { following } = useFollowing();
   const { recentSummaries, readCount } = useRecentSummaries();
+  const { user } = useAuth();
   
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -47,15 +50,38 @@ const Profile = () => {
       <main className="container px-4 py-4">
         {/* Profile Header */}
         <div className="flex flex-col items-center mb-6 p-5 rounded-xl bg-card border border-border">
-          <Avatar className="h-20 w-20 mb-3">
-            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.avatar}`} />
-            <AvatarFallback>{profile.name[0]}</AvatarFallback>
-          </Avatar>
-          <h2 className="text-xl font-bold text-foreground mb-0.5">{profile.name}</h2>
-          <p className="text-sm text-muted-foreground mb-3">{profile.email}</p>
-          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-            Edit Profile
-          </Button>
+          {loading ? (
+            <>
+              <Skeleton className="h-20 w-20 rounded-full mb-3" />
+              <Skeleton className="h-6 w-32 mb-2" />
+              <Skeleton className="h-4 w-40 mb-3" />
+            </>
+          ) : user ? (
+            <>
+              <Avatar className="h-20 w-20 mb-3">
+                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.avatar}`} />
+                <AvatarFallback>{profile.name[0]}</AvatarFallback>
+              </Avatar>
+              <h2 className="text-xl font-bold text-foreground mb-0.5">{profile.name}</h2>
+              <p className="text-sm text-muted-foreground mb-3">{profile.email}</p>
+              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                Edit Profile
+              </Button>
+            </>
+          ) : (
+            <>
+              <Avatar className="h-20 w-20 mb-3">
+                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=Guest`} />
+                <AvatarFallback>G</AvatarFallback>
+              </Avatar>
+              <h2 className="text-xl font-bold text-foreground mb-0.5">Guest User</h2>
+              <p className="text-sm text-muted-foreground mb-3">Login to save your profile</p>
+              <Button variant="default" size="sm" onClick={() => navigate("/auth")}>
+                <LogIn className="h-4 w-4 mr-2" />
+                Login / Sign Up
+              </Button>
+            </>
+          )}
 
           {/* Stats */}
           <div className="flex gap-8 mt-5 w-full justify-center">

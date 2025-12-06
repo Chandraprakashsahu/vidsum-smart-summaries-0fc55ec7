@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link2, Sparkles, Loader2, Edit3, Save, X, Play, ExternalLink, Lock } from "lucide-react";
+import { Link2, Sparkles, Loader2, Edit3, Save, X, Play, ExternalLink, Lock, UserPlus, UserCheck, Volume2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateReadTime, calculateListenTime } from "@/hooks/use-summaries";
+import { useSpeech } from "@/hooks/use-speech";
 
 interface GeneratedSummary {
   id: string;
@@ -19,7 +21,7 @@ interface GeneratedSummary {
   category: string;
   thumbnail: string;
   youtubeUrl: string;
-  youtubeVideoId: string;
+  videoId: string; // This comes from edge function as 'videoId'
   readTime: number;
   listenTime: number;
   intro: string;
@@ -41,6 +43,12 @@ const Add = () => {
   const [editedIntro, setEditedIntro] = useState("");
   const [editedPoints, setEditedPoints] = useState<{ title: string; items: string[] }[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("Technology");
+  const [isFollowingChannel, setIsFollowingChannel] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  
+  // Speech for audio playback
+  const { speak, stop, isPlaying: speaking } = useSpeech();
+  const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,17 +151,38 @@ const Add = () => {
   const handleUpload = async () => {
     if (!generatedSummary || !isSuperAdmin) return;
 
+    // Validate required fields
+    if (!generatedSummary.title || !generatedSummary.channel || !selectedCategory) {
+      toast({
+        title: "Missing Data",
+        description: "Title, channel, and category are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!generatedSummary.videoId) {
+      toast({
+        title: "Invalid Video",
+        description: "Could not extract video ID from URL.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUploading(true);
 
     try {
       // First, check if channel exists or create it
-      let channelId: string | null = null;
+      let channelId: string;
       
-      const { data: existingChannel } = await supabase
+      const { data: existingChannel, error: fetchError } = await supabase
         .from("channels")
         .select("id")
         .eq("name", generatedSummary.channel)
-        .single();
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
 
       if (existingChannel) {
         channelId = existingChannel.id;
@@ -172,6 +201,7 @@ const Add = () => {
           .single();
 
         if (channelError) throw channelError;
+        if (!newChannel) throw new Error("Failed to create channel");
         channelId = newChannel.id;
       }
 
@@ -179,10 +209,10 @@ const Add = () => {
       const readTime = calculateReadTime(editedIntro, editedPoints);
       const listenTime = calculateListenTime(editedIntro, editedPoints);
 
-      // Insert summary
+      // Insert summary with validated channel_id
       const { error: summaryError } = await supabase.from("summaries").insert({
         youtube_url: generatedSummary.youtubeUrl,
-        youtube_video_id: generatedSummary.youtubeVideoId,
+        youtube_video_id: generatedSummary.videoId,
         title: generatedSummary.title,
         thumbnail: generatedSummary.thumbnail,
         channel_id: channelId,
@@ -211,6 +241,76 @@ const Add = () => {
       });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleFollowChannel = async () => {
+    if (!generatedSummary || !user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to follow channels",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFollowLoading(true);
+    try {
+      // Check if channel exists, create if not
+      let channelId: string;
+      const { data: existingChannel } = await supabase
+        .from("channels")
+        .select("id")
+        .eq("name", generatedSummary.channel)
+        .maybeSingle();
+
+      if (existingChannel) {
+        channelId = existingChannel.id;
+      } else {
+        const avatarSeed = generatedSummary.channel.replace(/\s+/g, '');
+        const logoUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
+        
+        const { data: newChannel, error } = await supabase
+          .from("channels")
+          .insert({ name: generatedSummary.channel, logo_url: logoUrl })
+          .select("id")
+          .single();
+
+        if (error) throw error;
+        channelId = newChannel.id;
+      }
+
+      if (isFollowingChannel) {
+        // Unfollow
+        await supabase
+          .from("channel_followers")
+          .delete()
+          .eq("channel_id", channelId)
+          .eq("user_id", user.id);
+        setIsFollowingChannel(false);
+        toast({ title: "Unfollowed", description: `You unfollowed ${generatedSummary.channel}` });
+      } else {
+        // Follow
+        await supabase
+          .from("channel_followers")
+          .insert({ channel_id: channelId, user_id: user.id });
+        setIsFollowingChannel(true);
+        toast({ title: "Following!", description: `You're now following ${generatedSummary.channel}` });
+      }
+    } catch (error) {
+      console.error("Error toggling follow:", error);
+      toast({ title: "Error", description: "Could not update follow status", variant: "destructive" });
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const handlePlayAudio = () => {
+    if (speaking) {
+      stop();
+    } else if (generatedSummary) {
+      const textToSpeak = `${editedIntro}. ${editedPoints.map(p => `${p.title}. ${p.items.join('. ')}`).join('. ')}`;
+      speak(textToSpeak);
     }
   };
 
@@ -355,6 +455,56 @@ const Add = () => {
               <div className="absolute bottom-3 left-3 right-3">
                 <h3 className="text-white font-semibold text-lg line-clamp-2">{generatedSummary.title}</h3>
                 <p className="text-white/80 text-sm">{generatedSummary.channel}</p>
+              </div>
+            </div>
+
+            {/* Channel Info & Follow Button - Visible to all users */}
+            <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${generatedSummary.channel.replace(/\s+/g, '')}`} />
+                  <AvatarFallback>{generatedSummary.channel[0]}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold text-foreground">{generatedSummary.channel}</p>
+                  <p className="text-xs text-muted-foreground">YouTube Channel</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Audio Button */}
+                {supported && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePlayAudio}
+                    className="gap-1"
+                  >
+                    <Volume2 className={`h-4 w-4 ${speaking ? "text-primary animate-pulse" : ""}`} />
+                    {speaking ? "Stop" : "Listen"}
+                  </Button>
+                )}
+                {/* Follow Button */}
+                {user && (
+                  <Button
+                    variant={isFollowingChannel ? "secondary" : "default"}
+                    size="sm"
+                    onClick={handleFollowChannel}
+                    disabled={followLoading}
+                    className="gap-1"
+                  >
+                    {isFollowingChannel ? (
+                      <>
+                        <UserCheck className="h-4 w-4" />
+                        Following
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4" />
+                        Follow
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
 

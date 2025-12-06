@@ -6,6 +6,7 @@ interface SummaryCardProps {
   id: string;
   title: string;
   channel: string;
+  channelLogo?: string | null;
   thumbnail: string;
   readTime: number;
   listenTime: number;
@@ -15,14 +16,16 @@ const SummaryCard = ({
   id,
   title,
   channel,
+  channelLogo,
   thumbnail,
   readTime,
   listenTime,
 }: SummaryCardProps) => {
   const navigate = useNavigate();
 
-  // Generate avatar seed from channel name
+  // Generate avatar seed from channel name if no logo
   const avatarSeed = channel.replace(/\s+/g, '');
+  const logoUrl = channelLogo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
 
   return (
     <div
@@ -44,7 +47,7 @@ const SummaryCard = ({
         </h3>
         <div className="flex items-center gap-2 mb-2">
           <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
-            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`} />
+            <AvatarImage src={logoUrl} />
             <AvatarFallback className="text-xs">{channel.charAt(0)}</AvatarFallback>
           </Avatar>
           <p className="text-xs sm:text-sm text-muted-foreground truncate">{channel}</p>
@@ -52,13 +55,11 @@ const SummaryCard = ({
         <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <BookOpen className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-            <span className="hidden xs:inline">{readTime} min read</span>
-            <span className="xs:hidden">{readTime}m</span>
+            <span>{readTime} min read</span>
           </span>
           <span className="flex items-center gap-1">
             <Headphones className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-            <span className="hidden xs:inline">{listenTime} min listen</span>
-            <span className="xs:hidden">{listenTime}m</span>
+            <span>{listenTime} min listen</span>
           </span>
         </div>
       </div>

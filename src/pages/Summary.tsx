@@ -6,23 +6,103 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
-import { useFollowing } from "@/hooks/use-following";
 import { useRecentSummaries } from "@/hooks/use-recent-summaries";
 import { useSpeech } from "@/hooks/use-speech";
+import { useChannels } from "@/hooks/use-channels";
+import { useAuth } from "@/contexts/AuthContext";
 import { getSummaryById, summariesData, SummaryData } from "@/data/summaries";
+import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
+
+interface DbSummary {
+  id: string;
+  title: string;
+  thumbnail: string | null;
+  youtube_url: string;
+  intro: string;
+  key_points: { title: string; items: string[] }[];
+  read_time_minutes: number;
+  listen_time_minutes: number;
+  category: string;
+  channel?: {
+    id: string;
+    name: string;
+    logo_url: string | null;
+    followers_count: number;
+  } | null;
+}
 
 const Summary = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { isSaved, toggleSave } = useSavedSummaries();
-  const { isFollowing, toggleFollow } = useFollowing();
   const { addToRecent } = useRecentSummaries();
   const { isPlaying, progress, duration, toggle, stop } = useSpeech();
+  const { isFollowing, toggleFollow } = useChannels();
 
-  // Get summary data - check generated summaries first, then static data
+  const [dbSummary, setDbSummary] = useState<DbSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch from database first
+  useEffect(() => {
+    const fetchSummary = async () => {
+      if (!id) return;
+      
+      // Check if it's a UUID (database summary)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      
+      if (isUUID) {
+        try {
+          const { data, error } = await supabase
+            .from("summaries")
+            .select(`
+              *,
+              channel:channels(id, name, logo_url, followers_count)
+            `)
+            .eq("id", id)
+            .single();
+
+          if (!error && data) {
+            setDbSummary({
+              ...data,
+              key_points: data.key_points as { title: string; items: string[] }[],
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching summary:", error);
+        }
+      }
+      setLoading(false);
+    };
+
+    fetchSummary();
+  }, [id]);
+
+  // Get summary data - check database, then generated summaries, then static data
   const summaryData = useMemo(() => {
+    // If we have a database summary, use it
+    if (dbSummary) {
+      return {
+        id: dbSummary.id,
+        title: dbSummary.title,
+        channel: dbSummary.channel?.name || "Unknown",
+        channelId: dbSummary.channel?.id || null,
+        channelLogo: dbSummary.channel?.logo_url || null,
+        thumbnail: dbSummary.thumbnail || "",
+        readTime: dbSummary.read_time_minutes,
+        listenTime: dbSummary.listen_time_minutes,
+        category: dbSummary.category,
+        subscribers: `${dbSummary.channel?.followers_count || 0} followers`,
+        youtubeUrl: dbSummary.youtube_url,
+        content: {
+          intro: dbSummary.intro,
+          points: dbSummary.key_points,
+        },
+      };
+    }
+
     // Check if it's a generated summary
     if (id?.startsWith("generated-")) {
       const generatedSummaries = JSON.parse(localStorage.getItem("generatedSummaries") || "[]");
@@ -30,20 +110,29 @@ const Summary = () => {
       if (found) {
         return {
           ...found,
+          channelId: null,
+          channelLogo: null,
+          subscribers: "0",
           content: {
             intro: found.intro,
             points: found.points,
           },
-        } as SummaryData;
+        };
       }
     }
     
     // Fall back to static data
-    return getSummaryById(id || "1") || summariesData[0];
-  }, [id]);
+    const staticData = getSummaryById(id || "1") || summariesData[0];
+    return {
+      ...staticData,
+      channelId: null,
+      channelLogo: null,
+      content: staticData.content,
+    };
+  }, [id, dbSummary]);
 
   const isBookmarked = isSaved(summaryData.id);
-  const isFollowingCreator = isFollowing(summaryData.channel);
+  const isFollowingChannel = summaryData.channelId ? isFollowing(summaryData.channelId) : false;
 
   // Build speech text from content
   const speechText = useMemo(() => {
@@ -60,20 +149,22 @@ const Summary = () => {
   // Scroll to top and track as read when page loads
   useEffect(() => {
     window.scrollTo(0, 0);
-    // Add to recently viewed
-    addToRecent({
-      id: summaryData.id,
-      title: summaryData.title,
-      channel: summaryData.channel,
-      thumbnail: summaryData.thumbnail,
-      readTime: summaryData.readTime,
-      listenTime: summaryData.listenTime,
-      category: summaryData.category,
-    });
+    if (!loading) {
+      // Add to recently viewed
+      addToRecent({
+        id: summaryData.id,
+        title: summaryData.title,
+        channel: summaryData.channel,
+        thumbnail: summaryData.thumbnail,
+        readTime: summaryData.readTime,
+        listenTime: summaryData.listenTime,
+        category: summaryData.category,
+      });
+    }
     
     // Stop speech when leaving
     return () => stop();
-  }, [id, summaryData.id]);
+  }, [id, summaryData.id, loading]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -101,14 +192,27 @@ const Summary = () => {
     });
   };
 
-  const handleFollow = () => {
-    const creator = {
-      id: summaryData.channel.toLowerCase().replace(/\s/g, '-'),
-      name: summaryData.channel,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${summaryData.channel}`,
-      subscribers: summaryData.subscribers,
-    };
-    const nowFollowing = toggleFollow(creator);
+  const handleFollow = async () => {
+    if (!summaryData.channelId) {
+      toast({
+        title: "Cannot follow",
+        description: "Please login to follow channels",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user) {
+      toast({
+        title: "Login required",
+        description: "Please login to follow channels",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+
+    const nowFollowing = await toggleFollow(summaryData.channelId);
     toast({
       title: nowFollowing ? "Following!" : "Unfollowed",
       description: nowFollowing 
@@ -150,6 +254,16 @@ const Summary = () => {
   };
 
   const totalSeconds = duration || summaryData.listenTime * 60;
+  const avatarSeed = summaryData.channel.replace(/\s+/g, '');
+  const channelLogo = summaryData.channelLogo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -210,32 +324,34 @@ const Summary = () => {
         <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Avatar className="h-9 w-9">
-              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${summaryData.channel}`} />
+              <AvatarImage src={channelLogo} />
               <AvatarFallback>{summaryData.channel[0]}</AvatarFallback>
             </Avatar>
             <div>
               <p className="text-sm font-medium text-foreground">{summaryData.channel}</p>
-              <p className="text-xs text-muted-foreground">{summaryData.subscribers} subscribers</p>
+              <p className="text-xs text-muted-foreground">{summaryData.subscribers}</p>
             </div>
           </div>
-          <Button 
-            size="sm" 
-            variant={isFollowingCreator ? "outline" : "default"}
-            className="h-8 text-xs px-3"
-            onClick={handleFollow}
-          >
-            {isFollowingCreator ? (
-              <>
-                <UserCheck className="h-3.5 w-3.5 mr-1" />
-                Following
-              </>
-            ) : (
-              <>
-                <UserPlus className="h-3.5 w-3.5 mr-1" />
-                Follow
-              </>
-            )}
-          </Button>
+          {summaryData.channelId && (
+            <Button 
+              size="sm" 
+              variant={isFollowingChannel ? "outline" : "default"}
+              className="h-8 text-xs px-3"
+              onClick={handleFollow}
+            >
+              {isFollowingChannel ? (
+                <>
+                  <UserCheck className="h-3.5 w-3.5 mr-1" />
+                  Following
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-3.5 w-3.5 mr-1" />
+                  Follow
+                </>
+              )}
+            </Button>
+          )}
         </div>
 
         {/* Audio Player */}

@@ -29,7 +29,7 @@ const Onboarding = () => {
     if (currentScreen < onboardingScreens.length - 1) {
       setCurrentScreen(currentScreen + 1);
     } else {
-      navigate("/home");
+      navigate("/auth");
     }
   };
 

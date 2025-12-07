@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck, UserPlus, UserCheck } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck, UserPlus, UserCheck, Loader2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -33,6 +33,11 @@ interface DbSummary {
   } | null;
 }
 
+interface TranslatedContent {
+  intro: string;
+  keyPoints: { title: string; points: string[] }[];
+}
+
 const Summary = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -46,6 +51,8 @@ const Summary = () => {
 
   const [dbSummary, setDbSummary] = useState<DbSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [translatedContent, setTranslatedContent] = useState<TranslatedContent | null>(null);
+  const [translating, setTranslating] = useState(false);
 
   // Fetch from database first
   useEffect(() => {
@@ -133,20 +140,82 @@ const Summary = () => {
     };
   }, [id, dbSummary]);
 
+  // Translate content when language changes for DB summaries
+  const translateContent = useCallback(async () => {
+    if (!dbSummary) return;
+    
+    const cacheKey = `translation_${dbSummary.id}_${language}`;
+    const cached = localStorage.getItem(cacheKey);
+    
+    if (cached) {
+      setTranslatedContent(JSON.parse(cached));
+      return;
+    }
+
+    setTranslating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('translate-summary', {
+        body: {
+          intro: dbSummary.intro,
+          keyPoints: dbSummary.key_points.map(p => ({
+            title: p.title,
+            points: p.items
+          })),
+          targetLanguage: language
+        }
+      });
+
+      if (error) throw error;
+
+      if (data) {
+        const translated: TranslatedContent = {
+          intro: data.intro,
+          keyPoints: data.keyPoints
+        };
+        setTranslatedContent(translated);
+        localStorage.setItem(cacheKey, JSON.stringify(translated));
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+    } finally {
+      setTranslating(false);
+    }
+  }, [dbSummary, language]);
+
+  useEffect(() => {
+    if (dbSummary && !loading) {
+      translateContent();
+    }
+  }, [dbSummary, language, loading, translateContent]);
+
+  // Get display content (translated or original)
+  const displayContent = useMemo(() => {
+    if (translatedContent && dbSummary) {
+      return {
+        intro: translatedContent.intro,
+        points: translatedContent.keyPoints.map(p => ({
+          title: p.title,
+          items: p.points
+        }))
+      };
+    }
+    return summaryData.content;
+  }, [translatedContent, summaryData.content, dbSummary]);
+
   const isBookmarked = isSaved(summaryData.id);
   const isFollowingChannel = summaryData.channelId ? isFollowing(summaryData.channelId) : false;
 
   // Build speech text from content
   const speechText = useMemo(() => {
-    let text = summaryData.content.intro + ". ";
-    summaryData.content.points.forEach((point, i) => {
+    let text = displayContent.intro + ". ";
+    displayContent.points.forEach((point, i) => {
       text += `Point ${i + 1}: ${point.title}. `;
       point.items.forEach(item => {
         text += item + ". ";
       });
     });
     return text;
-  }, [summaryData]);
+  }, [displayContent]);
 
   // Scroll to top and track as read when page loads
   useEffect(() => {
@@ -390,14 +459,17 @@ const Summary = () => {
           <h2 className="text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
             <span className="w-1.5 h-5 bg-primary rounded-full"></span>
             {t("summary.keyPoints")}
+            {translating && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-2" />
+            )}
           </h2>
           
           <div className="space-y-4 text-foreground/90 text-base leading-relaxed">
             <p className="text-muted-foreground text-base">
-              {summaryData.content.intro}
+              {displayContent.intro}
             </p>
 
-            {summaryData.content.points.map((point, index) => (
+            {displayContent.points.map((point, index) => (
               <div key={index} className="bg-muted/50 rounded-lg p-4">
                 <h3 className="text-base font-semibold mb-2 text-foreground flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center font-bold">

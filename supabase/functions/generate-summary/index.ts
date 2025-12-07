@@ -86,7 +86,7 @@ serve(async (req) => {
   }
 
   try {
-    const { url, customNotes } = await req.json();
+    const { url, customNotes, language = "en" } = await req.json();
     
     if (!url) {
       return new Response(JSON.stringify({ error: "URL is required" }), {
@@ -134,18 +134,25 @@ serve(async (req) => {
       console.log("No YouTube API key configured, using fallback avatar");
     }
 
+    const isHindi = language === "hi";
+    const langInstruction = isHindi 
+      ? "Generate the summary in Hindi (हिंदी)" 
+      : "Generate the summary in English";
+    const introLang = isHindi ? "in Hindi" : "in English";
+    const pointLang = isHindi ? "in Hindi" : "in English";
+
     const systemPrompt = `You are a YouTube video summarizer. Generate a comprehensive summary for the video titled "${actualTitle}" by "${actualChannel}".
 
-Generate the summary in Hindi with the following JSON structure:
+${langInstruction} with the following JSON structure:
 {
   "category": "One of: Technology, Finance, Health, Science, Podcast, Entertainment",
   "readTime": number (estimated minutes to read, typically 3-7),
   "listenTime": number (estimated minutes to listen, typically 5-10),
-  "intro": "Brief introduction in Hindi about this video (1-2 sentences)",
+  "intro": "Brief introduction ${introLang} about this video (1-2 sentences)",
   "points": [
     {
-      "title": "Point title in Hindi",
-      "items": ["Specific item in Hindi", "Specific item in Hindi", "Specific item in Hindi"]
+      "title": "Point title ${pointLang}",
+      "items": ["Specific item ${pointLang}", "Specific item ${pointLang}", "Specific item ${pointLang}"]
     }
   ]
 }

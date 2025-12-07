@@ -12,11 +12,6 @@ import { toast } from "@/hooks/use-toast";
 const languages = [
   { code: "en", name: "English" },
   { code: "hi", name: "हिंदी (Hindi)" },
-  { code: "es", name: "Español (Spanish)" },
-  { code: "fr", name: "Français (French)" },
-  { code: "de", name: "Deutsch (German)" },
-  { code: "ja", name: "日本語 (Japanese)" },
-  { code: "zh", name: "中文 (Chinese)" },
 ];
 
 const Settings = () => {

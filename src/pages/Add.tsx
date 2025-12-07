@@ -77,8 +77,9 @@ const Add = () => {
     setGeneratedSummary(null);
     
     try {
+      const language = localStorage.getItem("language") || "en";
       const { data, error } = await supabase.functions.invoke("generate-summary", {
-        body: { url, customNotes },
+        body: { url, customNotes, language },
       });
 
       if (error) throw error;

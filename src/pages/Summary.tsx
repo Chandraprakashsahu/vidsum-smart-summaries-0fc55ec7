@@ -384,26 +384,26 @@ const Summary = () => {
         </div>
 
         {/* Summary Content */}
-        <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
-          <h2 className="text-base font-semibold mb-3 text-foreground flex items-center gap-2">
-            <span className="w-1 h-4 bg-primary rounded-full"></span>
-            मुख्य बिंदु (Key Points)
+        <div className="bg-card rounded-xl p-5 border border-border shadow-sm">
+          <h2 className="text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
+            <span className="w-1.5 h-5 bg-primary rounded-full"></span>
+            Key Points
           </h2>
           
-          <div className="space-y-3 text-foreground/85 text-sm leading-relaxed">
-            <p className="text-muted-foreground">
+          <div className="space-y-4 text-foreground/90 text-base leading-relaxed">
+            <p className="text-muted-foreground text-base">
               {summaryData.content.intro}
             </p>
 
             {summaryData.content.points.map((point, index) => (
-              <div key={index} className="bg-muted/50 rounded-lg p-3">
-                <h3 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">
+              <div key={index} className="bg-muted/50 rounded-lg p-4">
+                <h3 className="text-base font-semibold mb-2 text-foreground flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center font-bold">
                     {index + 1}
                   </span>
                   {point.title}
                 </h3>
-                <ul className="space-y-1 text-xs text-muted-foreground pl-7">
+                <ul className="space-y-2 text-sm text-muted-foreground pl-8">
                   {point.items.map((item, i) => (
                     <li key={i}>• {item}</li>
                   ))}

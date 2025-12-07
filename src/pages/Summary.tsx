@@ -10,6 +10,7 @@ import { useRecentSummaries } from "@/hooks/use-recent-summaries";
 import { useSpeech } from "@/hooks/use-speech";
 import { useFollowing } from "@/hooks/use-following";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { getSummaryById, summariesData, SummaryData } from "@/data/summaries";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
@@ -37,6 +38,7 @@ const Summary = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { language, t } = useLanguage();
   const { isSaved, toggleSave } = useSavedSummaries();
   const { addToRecent } = useRecentSummaries();
   const { isPlaying, progress, duration, toggle, stop } = useSpeech();
@@ -344,12 +346,12 @@ const Summary = () => {
               {isFollowingChannel ? (
                 <>
                   <UserCheck className="h-3.5 w-3.5 mr-1" />
-                  Following
+                  {t("summary.following")}
                 </>
               ) : (
                 <>
                   <UserPlus className="h-3.5 w-3.5 mr-1" />
-                  Follow
+                  {t("summary.follow")}
                 </>
               )}
             </Button>
@@ -387,7 +389,7 @@ const Summary = () => {
         <div className="bg-card rounded-xl p-5 border border-border shadow-sm">
           <h2 className="text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
             <span className="w-1.5 h-5 bg-primary rounded-full"></span>
-            Key Points
+            {t("summary.keyPoints")}
           </h2>
           
           <div className="space-y-4 text-foreground/90 text-base leading-relaxed">
@@ -420,7 +422,7 @@ const Summary = () => {
             size="lg"
             onClick={handleWatchYouTube}
           >
-            Watch on YouTube
+            {t("summary.watchOnYoutube")}
           </Button>
         </div>
       </main>

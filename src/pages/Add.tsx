@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateReadTime, calculateListenTime } from "@/hooks/use-summaries";
 import { useSpeech } from "@/hooks/use-speech";
@@ -35,6 +36,7 @@ const Add = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, isSuperAdmin } = useAuth();
+  const { language, t } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [url, setUrl] = useState("");
@@ -77,7 +79,6 @@ const Add = () => {
     setGeneratedSummary(null);
     
     try {
-      const language = localStorage.getItem("language") || "en";
       const { data, error } = await supabase.functions.invoke("generate-summary", {
         body: { url, customNotes, language },
       });

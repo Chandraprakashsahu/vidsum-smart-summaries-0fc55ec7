@@ -8,23 +8,21 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 const languages = [
-  { code: "en", name: "English" },
-  { code: "hi", name: "हिंदी (Hindi)" },
+  { code: "en" as Language, name: "English" },
+  { code: "hi" as Language, name: "हिंदी (Hindi)" },
 ];
 
 const Settings = () => {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   
   const [pushNotifications, setPushNotifications] = useState(() => {
     const saved = localStorage.getItem("pushNotifications");
     return saved !== null ? JSON.parse(saved) : true;
-  });
-  
-  const [language, setLanguage] = useState(() => {
-    return localStorage.getItem("language") || "en";
   });
   
   const [languageSheet, setLanguageSheet] = useState(false);
@@ -37,10 +35,6 @@ const Settings = () => {
     localStorage.setItem("pushNotifications", JSON.stringify(pushNotifications));
   }, [pushNotifications]);
 
-  useEffect(() => {
-    localStorage.setItem("language", language);
-  }, [language]);
-
   const handlePushNotifications = (value: boolean) => {
     setPushNotifications(value);
     toast({
@@ -49,11 +43,11 @@ const Settings = () => {
     });
   };
 
-  const handleLanguageChange = (code: string) => {
+  const handleLanguageChange = (code: Language) => {
     setLanguage(code);
     setLanguageSheet(false);
     toast({
-      title: "Language Changed",
+      title: t("settings.languageChanged"),
       description: `Language set to ${languages.find(l => l.code === code)?.name}`,
     });
   };

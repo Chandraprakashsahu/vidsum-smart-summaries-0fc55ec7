@@ -110,6 +110,8 @@ export type Database = {
         Row: {
           category: string
           channel_id: string | null
+          content_en: Json | null
+          content_hi: Json | null
           created_at: string
           id: string
           intro: string
@@ -126,6 +128,8 @@ export type Database = {
         Insert: {
           category?: string
           channel_id?: string | null
+          content_en?: Json | null
+          content_hi?: Json | null
           created_at?: string
           id?: string
           intro: string
@@ -142,6 +146,8 @@ export type Database = {
         Update: {
           category?: string
           channel_id?: string | null
+          content_en?: Json | null
+          content_hi?: Json | null
           created_at?: string
           id?: string
           intro?: string

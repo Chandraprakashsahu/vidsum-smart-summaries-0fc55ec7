@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck, UserPlus, UserCheck, Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { ArrowLeft, Share2, Bookmark, Play, Pause, BookmarkCheck, UserPlus, UserCheck } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,6 +15,11 @@ import { getSummaryById, summariesData, SummaryData } from "@/data/summaries";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
 
+interface BilingualContent {
+  intro: string;
+  keyPoints: { title: string; items: string[] }[];
+}
+
 interface DbSummary {
   id: string;
   title: string;
@@ -22,6 +27,8 @@ interface DbSummary {
   youtube_url: string;
   intro: string;
   key_points: { title: string; items: string[] }[];
+  content_en: BilingualContent | null;
+  content_hi: BilingualContent | null;
   read_time_minutes: number;
   listen_time_minutes: number;
   category: string;
@@ -31,11 +38,6 @@ interface DbSummary {
     logo_url: string | null;
     followers_count: number;
   } | null;
-}
-
-interface TranslatedContent {
-  intro: string;
-  keyPoints: { title: string; points: string[] }[];
 }
 
 const Summary = () => {
@@ -51,15 +53,12 @@ const Summary = () => {
 
   const [dbSummary, setDbSummary] = useState<DbSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [translatedContent, setTranslatedContent] = useState<TranslatedContent | null>(null);
-  const [translating, setTranslating] = useState(false);
 
   // Fetch from database first
   useEffect(() => {
     const fetchSummary = async () => {
       if (!id) return;
       
-      // Check if it's a UUID (database summary)
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       
       if (isUUID) {
@@ -77,6 +76,8 @@ const Summary = () => {
             setDbSummary({
               ...data,
               key_points: data.key_points as { title: string; items: string[] }[],
+              content_en: data.content_en as unknown as BilingualContent | null,
+              content_hi: data.content_hi as unknown as BilingualContent | null,
             });
           }
         } catch (error) {
@@ -89,9 +90,8 @@ const Summary = () => {
     fetchSummary();
   }, [id]);
 
-  // Get summary data - check database, then generated summaries, then static data
+  // Get summary data
   const summaryData = useMemo(() => {
-    // If we have a database summary, use it
     if (dbSummary) {
       return {
         id: dbSummary.id,
@@ -105,10 +105,14 @@ const Summary = () => {
         category: dbSummary.category,
         subscribers: `${dbSummary.channel?.followers_count || 0} followers`,
         youtubeUrl: dbSummary.youtube_url,
+        // Legacy content fallback
         content: {
           intro: dbSummary.intro,
           points: dbSummary.key_points,
         },
+        // Bilingual content
+        content_en: dbSummary.content_en,
+        content_hi: dbSummary.content_hi,
       };
     }
 
@@ -120,12 +124,14 @@ const Summary = () => {
         return {
           ...found,
           channelId: null,
-          channelLogo: null,
+          channelLogo: found.channelLogo || null,
           subscribers: "0",
           content: {
-            intro: found.intro,
-            points: found.points,
+            intro: found.content_en?.intro || found.intro,
+            points: found.content_en?.keyPoints?.map((p: any) => ({ title: p.title, items: p.items })) || found.points,
           },
+          content_en: found.content_en,
+          content_hi: found.content_hi,
         };
       }
     }
@@ -137,70 +143,37 @@ const Summary = () => {
       channelId: null,
       channelLogo: null,
       content: staticData.content,
+      content_en: null,
+      content_hi: null,
     };
   }, [id, dbSummary]);
 
-  // Translate content when language changes for DB summaries
-  const translateContent = useCallback(async () => {
-    if (!dbSummary) return;
-    
-    const cacheKey = `translation_${dbSummary.id}_${language}`;
-    const cached = localStorage.getItem(cacheKey);
-    
-    if (cached) {
-      setTranslatedContent(JSON.parse(cached));
-      return;
-    }
-
-    setTranslating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('translate-summary', {
-        body: {
-          intro: dbSummary.intro,
-          keyPoints: dbSummary.key_points.map(p => ({
-            title: p.title,
-            points: p.items
-          })),
-          targetLanguage: language
-        }
-      });
-
-      if (error) throw error;
-
-      if (data) {
-        const translated: TranslatedContent = {
-          intro: data.intro,
-          keyPoints: data.keyPoints
-        };
-        setTranslatedContent(translated);
-        localStorage.setItem(cacheKey, JSON.stringify(translated));
-      }
-    } catch (error) {
-      console.error('Translation error:', error);
-    } finally {
-      setTranslating(false);
-    }
-  }, [dbSummary, language]);
-
-  useEffect(() => {
-    if (dbSummary && !loading) {
-      translateContent();
-    }
-  }, [dbSummary, language, loading, translateContent]);
-
-  // Get display content (translated or original)
+  // Get display content based on language - INSTANT switching, no API calls
   const displayContent = useMemo(() => {
-    if (translatedContent && dbSummary) {
+    // For bilingual content (new system)
+    if (language === "hi" && summaryData.content_hi) {
       return {
-        intro: translatedContent.intro,
-        points: translatedContent.keyPoints.map(p => ({
+        intro: summaryData.content_hi.intro,
+        points: summaryData.content_hi.keyPoints.map(p => ({
           title: p.title,
-          items: p.points
+          items: p.items
         }))
       };
     }
+    
+    if (language === "en" && summaryData.content_en) {
+      return {
+        intro: summaryData.content_en.intro,
+        points: summaryData.content_en.keyPoints.map(p => ({
+          title: p.title,
+          items: p.items
+        }))
+      };
+    }
+    
+    // Fallback to legacy content
     return summaryData.content;
-  }, [translatedContent, summaryData.content, dbSummary]);
+  }, [language, summaryData]);
 
   const isBookmarked = isSaved(summaryData.id);
   const isFollowingChannel = summaryData.channelId ? isFollowing(summaryData.channelId) : false;
@@ -221,7 +194,6 @@ const Summary = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
     if (!loading) {
-      // Add to recently viewed
       addToRecent({
         id: summaryData.id,
         title: summaryData.title,
@@ -234,7 +206,6 @@ const Summary = () => {
       });
     }
     
-    // Stop speech when leaving
     return () => stop();
   }, [id, summaryData.id, loading]);
 
@@ -371,7 +342,7 @@ const Summary = () => {
       </header>
 
       <main className="container px-4 py-4 max-w-2xl">
-        {/* Video Thumbnail - Clickable to open YouTube */}
+        {/* Video Thumbnail */}
         <div 
           className="relative aspect-video rounded-xl overflow-hidden mb-4 shadow-md group cursor-pointer"
           onClick={handleWatchYouTube}
@@ -459,9 +430,6 @@ const Summary = () => {
           <h2 className="text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
             <span className="w-1.5 h-5 bg-primary rounded-full"></span>
             {t("summary.keyPoints")}
-            {translating && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-2" />
-            )}
           </h2>
           
           <div className="space-y-4 text-foreground/90 text-base leading-relaxed">

@@ -15,19 +15,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { calculateReadTime, calculateListenTime } from "@/hooks/use-summaries";
 import { useSpeech } from "@/hooks/use-speech";
 
+interface BilingualContent {
+  intro: string;
+  keyPoints: { title: string; items: string[] }[];
+}
+
 interface GeneratedSummary {
   id: string;
   title: string;
   channel: string;
-  channelLogo?: string | null; // Real YouTube channel logo from API
+  channelLogo?: string | null;
   category: string;
   thumbnail: string;
   youtubeUrl: string;
-  videoId: string; // This comes from edge function as 'videoId'
+  videoId: string;
   readTime: number;
   listenTime: number;
-  intro: string;
-  points: { title: string; items: string[] }[];
+  // Bilingual content
+  content_en: BilingualContent;
+  content_hi: BilingualContent;
 }
 
 const categories = ["Technology", "Finance", "Health", "Science", "Podcast", "Entertainment", "Education"];
@@ -43,15 +49,17 @@ const Add = () => {
   const [customNotes, setCustomNotes] = useState("");
   const [generatedSummary, setGeneratedSummary] = useState<GeneratedSummary | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedIntro, setEditedIntro] = useState("");
-  const [editedPoints, setEditedPoints] = useState<{ title: string; items: string[] }[]>([]);
+  const [editedContentEn, setEditedContentEn] = useState<BilingualContent | null>(null);
+  const [editedContentHi, setEditedContentHi] = useState<BilingualContent | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("Technology");
   const [isFollowingChannel, setIsFollowingChannel] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   
-  // Speech for audio playback
   const { speak, stop, isPlaying: speaking } = useSpeech();
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  // Get current display content based on language
+  const displayContent = language === "hi" ? editedContentHi : editedContentEn;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,25 +88,40 @@ const Add = () => {
     
     try {
       const { data, error } = await supabase.functions.invoke("generate-summary", {
-        body: { url, customNotes, language },
+        body: { url, customNotes },
       });
 
       if (error) throw error;
       if (data.error) throw new Error(data.error);
 
-      // Calculate actual read/listen times
-      const readTime = calculateReadTime(data.intro, data.points);
-      const listenTime = calculateListenTime(data.intro, data.points);
+      // Calculate read/listen times from English content
+      const readTime = calculateReadTime(
+        data.content_en?.intro || "", 
+        data.content_en?.keyPoints?.map((p: any) => ({ title: p.title, items: p.items })) || []
+      );
+      const listenTime = calculateListenTime(
+        data.content_en?.intro || "", 
+        data.content_en?.keyPoints?.map((p: any) => ({ title: p.title, items: p.items })) || []
+      );
 
-      const summaryWithTimes = {
-        ...data,
+      const summaryWithTimes: GeneratedSummary = {
+        id: data.id,
+        title: data.title,
+        channel: data.channel,
+        channelLogo: data.channelLogo,
+        category: data.category || "Technology",
+        thumbnail: data.thumbnail,
+        youtubeUrl: data.youtubeUrl,
+        videoId: data.videoId,
         readTime,
         listenTime,
+        content_en: data.content_en,
+        content_hi: data.content_hi,
       };
 
       setGeneratedSummary(summaryWithTimes);
-      setEditedIntro(data.intro);
-      setEditedPoints(data.points);
+      setEditedContentEn(data.content_en);
+      setEditedContentHi(data.content_hi);
       setSelectedCategory(data.category || "Technology");
 
       toast({
@@ -125,21 +148,27 @@ const Add = () => {
 
   const handleCancelEdit = () => {
     if (generatedSummary) {
-      setEditedIntro(generatedSummary.intro);
-      setEditedPoints(generatedSummary.points);
+      setEditedContentEn(generatedSummary.content_en);
+      setEditedContentHi(generatedSummary.content_hi);
     }
     setIsEditing(false);
   };
 
   const handleSaveEdit = () => {
-    if (generatedSummary) {
-      const readTime = calculateReadTime(editedIntro, editedPoints);
-      const listenTime = calculateListenTime(editedIntro, editedPoints);
+    if (generatedSummary && editedContentEn && editedContentHi) {
+      const readTime = calculateReadTime(
+        editedContentEn.intro,
+        editedContentEn.keyPoints.map(p => ({ title: p.title, items: p.items }))
+      );
+      const listenTime = calculateListenTime(
+        editedContentEn.intro,
+        editedContentEn.keyPoints.map(p => ({ title: p.title, items: p.items }))
+      );
       
       setGeneratedSummary({
         ...generatedSummary,
-        intro: editedIntro,
-        points: editedPoints,
+        content_en: editedContentEn,
+        content_hi: editedContentHi,
         readTime,
         listenTime,
       });
@@ -152,9 +181,8 @@ const Add = () => {
   };
 
   const handleUpload = async () => {
-    if (!generatedSummary || !isSuperAdmin) return;
+    if (!generatedSummary || !isSuperAdmin || !editedContentEn || !editedContentHi) return;
 
-    // Validate required fields
     if (!generatedSummary.title || !generatedSummary.channel || !selectedCategory) {
       toast({
         title: "Missing Data",
@@ -176,7 +204,6 @@ const Add = () => {
     setIsUploading(true);
 
     try {
-      // First, check if channel exists or create it
       let channelId: string;
       
       const { data: existingChannel, error: fetchError } = await supabase
@@ -190,7 +217,6 @@ const Add = () => {
       if (existingChannel) {
         channelId = existingChannel.id;
         
-        // Update channel logo if we have a real one from YouTube API
         if (generatedSummary.channelLogo) {
           await supabase
             .from("channels")
@@ -198,7 +224,6 @@ const Add = () => {
             .eq("id", existingChannel.id);
         }
       } else {
-        // Create new channel with real logo or fallback to dicebear
         const avatarSeed = generatedSummary.channel.replace(/\s+/g, '');
         const logoUrl = generatedSummary.channelLogo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
         
@@ -216,30 +241,37 @@ const Add = () => {
         channelId = newChannel.id;
       }
 
-      // Calculate times
-      const readTime = calculateReadTime(editedIntro, editedPoints);
-      const listenTime = calculateListenTime(editedIntro, editedPoints);
+      const readTime = calculateReadTime(
+        editedContentEn.intro,
+        editedContentEn.keyPoints.map(p => ({ title: p.title, items: p.items }))
+      );
+      const listenTime = calculateListenTime(
+        editedContentEn.intro,
+        editedContentEn.keyPoints.map(p => ({ title: p.title, items: p.items }))
+      );
 
-      // Insert summary with validated channel_id
-      const { error: summaryError } = await supabase.from("summaries").insert({
+      // Insert summary with BOTH language contents
+      const { error: summaryError } = await supabase.from("summaries").insert([{
         youtube_url: generatedSummary.youtubeUrl,
         youtube_video_id: generatedSummary.videoId,
         title: generatedSummary.title,
         thumbnail: generatedSummary.thumbnail,
         channel_id: channelId,
         category: selectedCategory,
-        intro: editedIntro,
-        key_points: editedPoints,
+        intro: editedContentEn.intro,
+        key_points: editedContentEn.keyPoints.map(p => ({ title: p.title, items: p.items })),
+        content_en: JSON.parse(JSON.stringify(editedContentEn)),
+        content_hi: JSON.parse(JSON.stringify(editedContentHi)),
         read_time_minutes: readTime,
         listen_time_minutes: listenTime,
         uploaded_by: user?.id,
-      });
+      }]);
 
       if (summaryError) throw summaryError;
 
       toast({
         title: "Summary Uploaded!",
-        description: "Your summary has been published successfully.",
+        description: "Your bilingual summary has been published successfully.",
       });
 
       navigate("/home");
@@ -267,7 +299,6 @@ const Add = () => {
 
     setFollowLoading(true);
     try {
-      // Check if channel exists, create if not
       let channelId: string;
       const { data: existingChannel } = await supabase
         .from("channels")
@@ -278,7 +309,6 @@ const Add = () => {
       if (existingChannel) {
         channelId = existingChannel.id;
         
-        // Update channel logo if we have a real one from YouTube API
         if (generatedSummary.channelLogo) {
           await supabase
             .from("channels")
@@ -300,7 +330,6 @@ const Add = () => {
       }
 
       if (isFollowingChannel) {
-        // Unfollow
         await supabase
           .from("channel_followers")
           .delete()
@@ -309,7 +338,6 @@ const Add = () => {
         setIsFollowingChannel(false);
         toast({ title: "Unfollowed", description: `You unfollowed ${generatedSummary.channel}` });
       } else {
-        // Follow
         await supabase
           .from("channel_followers")
           .insert({ channel_id: channelId, user_id: user.id });
@@ -327,22 +355,42 @@ const Add = () => {
   const handlePlayAudio = () => {
     if (speaking) {
       stop();
-    } else if (generatedSummary) {
-      const textToSpeak = `${editedIntro}. ${editedPoints.map(p => `${p.title}. ${p.items.join('. ')}`).join('. ')}`;
+    } else if (displayContent) {
+      const textToSpeak = `${displayContent.intro}. ${displayContent.keyPoints.map(p => `${p.title}. ${p.items.join('. ')}`).join('. ')}`;
       speak(textToSpeak);
     }
   };
 
+  const handleIntroChange = (newIntro: string) => {
+    if (language === "hi" && editedContentHi) {
+      setEditedContentHi({ ...editedContentHi, intro: newIntro });
+    } else if (editedContentEn) {
+      setEditedContentEn({ ...editedContentEn, intro: newIntro });
+    }
+  };
+
   const handlePointTitleChange = (index: number, newTitle: string) => {
-    const updated = [...editedPoints];
-    updated[index] = { ...updated[index], title: newTitle };
-    setEditedPoints(updated);
+    if (language === "hi" && editedContentHi) {
+      const updated = [...editedContentHi.keyPoints];
+      updated[index] = { ...updated[index], title: newTitle };
+      setEditedContentHi({ ...editedContentHi, keyPoints: updated });
+    } else if (editedContentEn) {
+      const updated = [...editedContentEn.keyPoints];
+      updated[index] = { ...updated[index], title: newTitle };
+      setEditedContentEn({ ...editedContentEn, keyPoints: updated });
+    }
   };
 
   const handlePointItemChange = (pointIndex: number, itemIndex: number, newItem: string) => {
-    const updated = [...editedPoints];
-    updated[pointIndex].items[itemIndex] = newItem;
-    setEditedPoints(updated);
+    if (language === "hi" && editedContentHi) {
+      const updated = [...editedContentHi.keyPoints];
+      updated[pointIndex].items[itemIndex] = newItem;
+      setEditedContentHi({ ...editedContentHi, keyPoints: updated });
+    } else if (editedContentEn) {
+      const updated = [...editedContentEn.keyPoints];
+      updated[pointIndex].items[itemIndex] = newItem;
+      setEditedContentEn({ ...editedContentEn, keyPoints: updated });
+    }
   };
 
   const handleWatchYouTube = () => {
@@ -380,7 +428,7 @@ const Add = () => {
                 Generate Summary
               </h2>
               <p className="text-muted-foreground">
-                Enter a YouTube URL to generate a summary
+                Enter a YouTube URL to generate a bilingual summary (English + Hindi)
               </p>
               {!isSuperAdmin && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1">
@@ -427,7 +475,7 @@ const Add = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      Generating Summary...
+                      Generating Bilingual Summary...
                     </>
                   ) : (
                     "Generate Summary"
@@ -448,9 +496,7 @@ const Add = () => {
 
             <div className="mt-6 p-4 rounded-lg bg-secondary/50">
               <p className="text-sm text-muted-foreground">
-                <strong className="text-foreground">Tip:</strong> Our AI will
-                analyze the video content and create a concise summary with key
-                points.
+                <strong className="text-foreground">Tip:</strong> AI generates both English and Hindi summaries in one call for instant language switching.
               </p>
             </div>
           </div>
@@ -477,7 +523,7 @@ const Add = () => {
               </div>
             </div>
 
-            {/* Channel Info & Follow Button - Visible to all users */}
+            {/* Channel Info & Actions */}
             <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border">
               <div className="flex items-center gap-3">
                 <Avatar className="h-12 w-12">
@@ -490,7 +536,6 @@ const Add = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {/* Audio Button */}
                 {supported && (
                   <Button
                     variant="outline"
@@ -502,7 +547,6 @@ const Add = () => {
                     {speaking ? "Stop" : "Listen"}
                   </Button>
                 )}
-                {/* Follow Button */}
                 {user && (
                   <Button
                     variant={isFollowingChannel ? "secondary" : "default"}
@@ -525,6 +569,15 @@ const Add = () => {
                   </Button>
                 )}
               </div>
+            </div>
+
+            {/* Language Indicator */}
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <span>Viewing:</span>
+              <span className="font-medium text-foreground">
+                {language === "hi" ? "हिंदी" : "English"}
+              </span>
+              <span className="text-xs">(Switch in Settings)</span>
             </div>
 
             {/* Summary Card */}
@@ -558,20 +611,20 @@ const Add = () => {
                 <Label className="text-sm font-medium mb-2 block">Introduction</Label>
                 {isEditing ? (
                   <Textarea
-                    value={editedIntro}
-                    onChange={(e) => setEditedIntro(e.target.value)}
+                    value={displayContent?.intro || ""}
+                    onChange={(e) => handleIntroChange(e.target.value)}
                     rows={3}
                     className="text-sm"
                   />
                 ) : (
-                  <p className="text-muted-foreground text-sm leading-relaxed">{editedIntro}</p>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{displayContent?.intro}</p>
                 )}
               </div>
 
               {/* Key Points */}
               <div className="space-y-4">
                 <Label className="text-sm font-medium">Key Points</Label>
-                {editedPoints.map((point, pIndex) => (
+                {displayContent?.keyPoints.map((point, pIndex) => (
                   <div key={pIndex} className="p-3 rounded-lg bg-secondary/50">
                     {isEditing ? (
                       <Input
@@ -602,7 +655,7 @@ const Add = () => {
                 ))}
               </div>
 
-              {/* Action Buttons - Only show edit/upload for super admin */}
+              {/* Action Buttons - Only show for super admin */}
               {isSuperAdmin && (
                 <div className="flex gap-3 mt-6">
                   {isEditing ? (

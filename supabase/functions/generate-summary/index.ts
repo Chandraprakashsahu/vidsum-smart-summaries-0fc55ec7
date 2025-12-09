@@ -27,7 +27,6 @@ async function fetchVideoMetadata(url: string): Promise<{ title: string; author:
 // Fetch channel details including logo using YouTube Data API
 async function fetchChannelDetails(videoId: string, apiKey: string): Promise<{ channelId: string; channelTitle: string; channelLogo: string | null } | null> {
   try {
-    // First, get channel ID from video
     const videoUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`;
     console.log("Fetching video details from YouTube API...");
     
@@ -50,7 +49,6 @@ async function fetchChannelDetails(videoId: string, apiKey: string): Promise<{ c
     
     console.log("Found channel:", channelTitle, "ID:", channelId);
     
-    // Now fetch channel details to get the logo
     const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${apiKey}`;
     const channelResponse = await fetch(channelUrl);
     
@@ -67,7 +65,6 @@ async function fetchChannelDetails(videoId: string, apiKey: string): Promise<{ c
       return { channelId, channelTitle, channelLogo: null };
     }
     
-    // Get the best quality thumbnail available
     const thumbnails = channelSnippet.thumbnails;
     const channelLogo = thumbnails?.high?.url || thumbnails?.medium?.url || thumbnails?.default?.url || null;
     
@@ -86,7 +83,7 @@ serve(async (req) => {
   }
 
   try {
-    const { url, customNotes, language = "en" } = await req.json();
+    const { url, customNotes } = await req.json();
     
     if (!url) {
       return new Response(JSON.stringify({ error: "URL is required" }), {
@@ -95,7 +92,7 @@ serve(async (req) => {
       });
     }
 
-    console.log("Generating summary for URL:", url);
+    console.log("Generating bilingual summary for URL:", url);
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY");
@@ -104,7 +101,6 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Extract video ID from YouTube URL
     const videoId = extractVideoId(url);
     if (!videoId) {
       return new Response(JSON.stringify({ error: "Invalid YouTube URL" }), {
@@ -113,7 +109,6 @@ serve(async (req) => {
       });
     }
 
-    // Fetch actual video metadata from YouTube oEmbed
     const metadata = await fetchVideoMetadata(url);
     console.log("Video metadata from oEmbed:", metadata);
 
@@ -121,7 +116,6 @@ serve(async (req) => {
     let actualChannel = metadata?.author || "Unknown Channel";
     let channelLogo: string | null = null;
     
-    // Try to get real channel logo using YouTube Data API if API key is available
     if (YOUTUBE_API_KEY) {
       console.log("YouTube API key found, fetching channel details...");
       const channelDetails = await fetchChannelDetails(videoId, YOUTUBE_API_KEY);
@@ -134,30 +128,35 @@ serve(async (req) => {
       console.log("No YouTube API key configured, using fallback avatar");
     }
 
-    const isHindi = language === "hi";
-    const langInstruction = isHindi 
-      ? "Generate the summary in Hindi (हिंदी)" 
-      : "Generate the summary in English";
-    const introLang = isHindi ? "in Hindi" : "in English";
-    const pointLang = isHindi ? "in Hindi" : "in English";
+    // Generate BOTH English and Hindi summaries in ONE AI call
+    const systemPrompt = `You are a YouTube video summarizer. Generate a comprehensive BILINGUAL summary (English AND Hindi) for the video titled "${actualTitle}" by "${actualChannel}".
 
-    const systemPrompt = `You are a YouTube video summarizer. Generate a comprehensive summary for the video titled "${actualTitle}" by "${actualChannel}".
-
-${langInstruction} with the following JSON structure:
+Return a JSON object with BOTH languages:
 {
   "category": "One of: Technology, Finance, Health, Science, Podcast, Entertainment",
   "readTime": number (estimated minutes to read, typically 3-7),
   "listenTime": number (estimated minutes to listen, typically 5-10),
-  "intro": "Brief introduction ${introLang} about this video (1-2 sentences)",
-  "points": [
-    {
-      "title": "Point title ${pointLang}",
-      "items": ["Specific item ${pointLang}", "Specific item ${pointLang}", "Specific item ${pointLang}"]
-    }
-  ]
+  "content_en": {
+    "intro": "Brief introduction in English about this video (1-2 sentences)",
+    "keyPoints": [
+      {
+        "title": "Point title in English",
+        "items": ["Item 1 in English", "Item 2 in English", "Item 3 in English"]
+      }
+    ]
+  },
+  "content_hi": {
+    "intro": "Brief introduction in Hindi about this video (1-2 sentences)",
+    "keyPoints": [
+      {
+        "title": "Point title in Hindi",
+        "items": ["Item 1 in Hindi", "Item 2 in Hindi", "Item 3 in Hindi"]
+      }
+    ]
+  }
 }
 
-Generate 3-4 key points with 3 items each. Create content specifically relevant to: "${actualTitle}"
+Generate 3-4 key points with 3 items each FOR EACH LANGUAGE. Make the Hindi translation natural, not literal.
 ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -170,7 +169,7 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Create a detailed summary for this YouTube video:\nTitle: ${actualTitle}\nChannel: ${actualChannel}\nURL: ${url}` }
+          { role: "user", content: `Create a detailed bilingual summary (English and Hindi) for this YouTube video:\nTitle: ${actualTitle}\nChannel: ${actualChannel}\nURL: ${url}` }
         ],
       }),
     });
@@ -200,7 +199,6 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
     
     console.log("AI Response:", content);
 
-    // Parse the JSON from the response
     let summary;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -211,31 +209,43 @@ ${customNotes ? `User's additional focus: ${customNotes}` : ""}`;
       }
     } catch (parseError) {
       console.error("Parse error:", parseError);
+      // Fallback with both languages
       summary = {
         category: "Technology",
         readTime: 5,
         listenTime: 7,
-        intro: "इस वीडियो में महत्वपूर्ण जानकारी दी गई है।",
-        points: [
-          {
-            title: "मुख्य बिंदु",
-            items: ["महत्वपूर्ण जानकारी 1", "महत्वपूर्ण जानकारी 2", "महत्वपूर्ण जानकारी 3"]
-          }
-        ]
+        content_en: {
+          intro: "This video contains important information.",
+          keyPoints: [
+            {
+              title: "Key Points",
+              items: ["Important point 1", "Important point 2", "Important point 3"]
+            }
+          ]
+        },
+        content_hi: {
+          intro: "इस वीडियो में महत्वपूर्ण जानकारी है।",
+          keyPoints: [
+            {
+              title: "मुख्य बिंदु",
+              items: ["महत्वपूर्ण बिंदु 1", "महत्वपूर्ण बिंदु 2", "महत्वपूर्ण बिंदु 3"]
+            }
+          ]
+        }
       };
     }
 
-    // Add actual video metadata
+    // Add video metadata
     summary.id = `gen-${Date.now()}`;
     summary.title = actualTitle;
     summary.channel = actualChannel;
-    summary.channelLogo = channelLogo; // Real YouTube channel logo or null
+    summary.channelLogo = channelLogo;
     summary.videoId = videoId;
     summary.youtubeUrl = url;
     summary.thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
     summary.subscribers = "N/A";
 
-    console.log("Generated summary with channel logo:", summary.channelLogo);
+    console.log("Generated bilingual summary successfully");
 
     return new Response(JSON.stringify(summary), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -33,7 +33,7 @@ export function useChannels() {
     }
   };
 
-  const fetchFollowedChannels = async () => {
+  const fetchFollowedChannels = useCallback(async () => {
     if (!user) {
       setFollowedChannelIds([]);
       return;
@@ -50,7 +50,7 @@ export function useChannels() {
     } catch (error) {
       console.error("Error fetching followed channels:", error);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchChannels();
@@ -58,15 +58,19 @@ export function useChannels() {
 
   useEffect(() => {
     fetchFollowedChannels();
-  }, [user]);
+  }, [fetchFollowedChannels]);
 
-  const isFollowing = (channelId: string) => followedChannelIds.includes(channelId);
+  const isFollowing = useCallback((channelId: string) => {
+    return followedChannelIds.includes(channelId);
+  }, [followedChannelIds]);
 
   const toggleFollow = async (channelId: string) => {
     if (!user) return false;
 
+    const currentlyFollowing = followedChannelIds.includes(channelId);
+
     try {
-      if (isFollowing(channelId)) {
+      if (currentlyFollowing) {
         // Unfollow
         const { error } = await supabase
           .from("channel_followers")
@@ -75,6 +79,8 @@ export function useChannels() {
           .eq("channel_id", channelId);
 
         if (error) throw error;
+        
+        // Update local state
         setFollowedChannelIds((prev) => prev.filter((id) => id !== channelId));
         
         // Update local channel count
@@ -93,6 +99,8 @@ export function useChannels() {
           .insert({ user_id: user.id, channel_id: channelId });
 
         if (error) throw error;
+        
+        // Update local state
         setFollowedChannelIds((prev) => [...prev, channelId]);
         
         // Update local channel count
@@ -107,7 +115,7 @@ export function useChannels() {
       }
     } catch (error) {
       console.error("Error toggling follow:", error);
-      return isFollowing(channelId);
+      return currentlyFollowing;
     }
   };
 
@@ -122,5 +130,6 @@ export function useChannels() {
     toggleFollow,
     getChannelByName,
     refetch: fetchChannels,
+    refetchFollowed: fetchFollowedChannels,
   };
 }

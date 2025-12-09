@@ -571,14 +571,6 @@ const Add = () => {
               </div>
             </div>
 
-            {/* Language Indicator */}
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <span>Viewing:</span>
-              <span className="font-medium text-foreground">
-                {language === "hi" ? "हिंदी" : "English"}
-              </span>
-              <span className="text-xs">(Switch in Settings)</span>
-            </div>
 
             {/* Summary Card */}
             <div className="p-5 rounded-2xl bg-card border border-border">

@@ -9,25 +9,17 @@ export interface FollowedChannel {
   followers_count: number;
 }
 
-const LOCAL_STORAGE_KEY = "vidsum-following";
-
 export function useFollowing() {
   const { user } = useAuth();
   const [following, setFollowing] = useState<FollowedChannel[]>([]);
+  const [followedIds, setFollowedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch followed channels from database
   const fetchFollowing = useCallback(async () => {
     if (!user) {
-      // Load from localStorage for guests
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        try {
-          setFollowing(JSON.parse(stored));
-        } catch {
-          setFollowing([]);
-        }
-      }
+      setFollowing([]);
+      setFollowedIds([]);
       setLoading(false);
       return;
     }
@@ -44,15 +36,18 @@ export function useFollowing() {
       if (error) {
         console.error("Error fetching followed channels:", error);
         setFollowing([]);
+        setFollowedIds([]);
       } else {
         const channels = data
           ?.map((item: any) => item.channels)
           .filter(Boolean) as FollowedChannel[];
         setFollowing(channels || []);
+        setFollowedIds(channels?.map(c => c.id) || []);
       }
     } catch (error) {
       console.error("Error:", error);
       setFollowing([]);
+      setFollowedIds([]);
     }
     setLoading(false);
   }, [user]);
@@ -62,12 +57,11 @@ export function useFollowing() {
   }, [fetchFollowing]);
 
   const isFollowing = useCallback((channelId: string) => {
-    return following.some(c => c.id === channelId);
-  }, [following]);
+    return followedIds.includes(channelId);
+  }, [followedIds]);
 
   const followChannel = async (channelId: string) => {
     if (!user) {
-      // Guest users can't follow
       return false;
     }
 
@@ -81,6 +75,9 @@ export function useFollowing() {
         return false;
       }
 
+      // Optimistically update local state
+      setFollowedIds(prev => [...prev, channelId]);
+      
       // Refetch to get updated data
       await fetchFollowing();
       return true;
@@ -105,6 +102,9 @@ export function useFollowing() {
         return false;
       }
 
+      // Optimistically update local state
+      setFollowedIds(prev => prev.filter(id => id !== channelId));
+
       await fetchFollowing();
       return true;
     } catch (error) {
@@ -114,7 +114,10 @@ export function useFollowing() {
   };
 
   const toggleFollow = async (channelId: string): Promise<boolean> => {
-    if (isFollowing(channelId)) {
+    // Check current state from the followedIds array directly
+    const currentlyFollowing = followedIds.includes(channelId);
+    
+    if (currentlyFollowing) {
       await unfollowChannel(channelId);
       return false;
     } else {

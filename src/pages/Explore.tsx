@@ -4,7 +4,7 @@ import BottomNav from "@/components/BottomNav";
 import CategoryPills from "@/components/CategoryPills";
 import SummaryCard from "@/components/SummaryCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSummaries, calculateReadTime, calculateListenTime } from "@/hooks/use-summaries";
+import { useExploreSummaries, calculateReadTime, calculateListenTime } from "@/hooks/use-summaries";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const categories = [
@@ -18,7 +18,7 @@ const categories = [
 
 const Explore = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const { summaries, loading } = useSummaries();
+  const { summaries, loading } = useExploreSummaries();
 
   // Filter summaries by category
   const filteredSummaries = selectedCategory === "All" 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Summary {
@@ -22,45 +22,43 @@ export interface Summary {
   };
 }
 
+// Stale time constants
+const ONE_HOUR = 1000 * 60 * 60;
+const TEN_MINUTES = 1000 * 60 * 10;
+
+const fetchSummaries = async (category?: string): Promise<Summary[]> => {
+  let query = supabase
+    .from("summaries")
+    .select(`
+      *,
+      channel:channels(id, name, logo_url, followers_count)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (category && category !== "All") {
+    query = query.eq("category", category);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  
+  return (data || []).map((item) => ({
+    ...item,
+    key_points: item.key_points as { title: string; items: string[] }[],
+  }));
+};
+
+// Home page hook - 1 hour stale time (daily curated)
 export function useSummaries(category?: string) {
-  const [summaries, setSummaries] = useState<Summary[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchSummaries = async () => {
-    try {
-      let query = supabase
-        .from("summaries")
-        .select(`
-          *,
-          channel:channels(id, name, logo_url, followers_count)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (category && category !== "All") {
-        query = query.eq("category", category);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      
-      // Transform key_points from JSONB
-      const transformedData = (data || []).map((item) => ({
-        ...item,
-        key_points: item.key_points as { title: string; items: string[] }[],
-      }));
-      
-      setSummaries(transformedData);
-    } catch (error) {
-      console.error("Error fetching summaries:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSummaries();
-  }, [category]);
+  const queryClient = useQueryClient();
+  
+  const { data: summaries = [], isLoading: loading } = useQuery({
+    queryKey: ["summaries", "home", category || "All"],
+    queryFn: () => fetchSummaries(category),
+    staleTime: ONE_HOUR, // Cache for 1 hour
+    gcTime: ONE_HOUR * 24, // Keep in cache for 24 hours
+  });
 
   const getSummaryById = async (id: string): Promise<Summary | null> => {
     try {
@@ -85,11 +83,37 @@ export function useSummaries(category?: string) {
     }
   };
 
+  const refetch = () => {
+    queryClient.invalidateQueries({ queryKey: ["summaries", "home"] });
+  };
+
   return {
     summaries,
     loading,
     getSummaryById,
-    refetch: fetchSummaries,
+    refetch,
+  };
+}
+
+// Explore page hook - 10 minutes stale time (hourly updates)
+export function useExploreSummaries(category?: string) {
+  const queryClient = useQueryClient();
+  
+  const { data: summaries = [], isLoading: loading } = useQuery({
+    queryKey: ["summaries", "explore", category || "All"],
+    queryFn: () => fetchSummaries(category),
+    staleTime: TEN_MINUTES, // Cache for 10 minutes
+    gcTime: ONE_HOUR, // Keep in cache for 1 hour
+  });
+
+  const refetch = () => {
+    queryClient.invalidateQueries({ queryKey: ["summaries", "explore"] });
+  };
+
+  return {
+    summaries,
+    loading,
+    refetch,
   };
 }
 

@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSavedSummaries } from "@/hooks/use-saved-summaries";
 import { useRecentSummaries } from "@/hooks/use-recent-summaries";
 import { useSpeech } from "@/hooks/use-speech";
-import { useFollowing } from "@/hooks/use-following";
+import { useChannels } from "@/hooks/use-channels";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getSummaryById, summariesData, SummaryData } from "@/data/summaries";
@@ -49,7 +49,7 @@ const Summary = () => {
   const { isSaved, toggleSave } = useSavedSummaries();
   const { addToRecent } = useRecentSummaries();
   const { isPlaying, progress, duration, toggle, stop } = useSpeech();
-  const { isFollowing, toggleFollow } = useFollowing();
+  const { isFollowing, toggleFollow } = useChannels();
 
   const [dbSummary, setDbSummary] = useState<DbSummary | null>(null);
   const [loading, setLoading] = useState(true);

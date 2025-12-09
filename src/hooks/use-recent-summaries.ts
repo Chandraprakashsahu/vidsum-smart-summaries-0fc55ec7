@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export interface RecentSummary {
   id: string;
@@ -12,17 +12,33 @@ export interface RecentSummary {
   viewedAt: number;
 }
 
+const STORAGE_KEY = "recentSummaries";
+const DEBOUNCE_MS = 500;
+
 export const useRecentSummaries = () => {
   const [recentSummaries, setRecentSummaries] = useState<RecentSummary[]>(() => {
-    const saved = localStorage.getItem("recentSummaries");
+    const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
   });
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    localStorage.setItem("recentSummaries", JSON.stringify(recentSummaries));
+    // Debounce localStorage writes
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    debounceTimer.current = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(recentSummaries));
+    }, DEBOUNCE_MS);
+    
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
   }, [recentSummaries]);
 
-  const addToRecent = (summary: Omit<RecentSummary, "viewedAt">) => {
+  const addToRecent = useCallback((summary: Omit<RecentSummary, "viewedAt">) => {
     setRecentSummaries((prev) => {
       // Remove if already exists
       const filtered = prev.filter((s) => s.id !== summary.id);
@@ -31,11 +47,11 @@ export const useRecentSummaries = () => {
       // Keep only last 50
       return updated.slice(0, 50);
     });
-  };
+  }, []);
 
-  const clearRecent = () => {
+  const clearRecent = useCallback(() => {
     setRecentSummaries([]);
-  };
+  }, []);
 
   const readCount = recentSummaries.length;
 

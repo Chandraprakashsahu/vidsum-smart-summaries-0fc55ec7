@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -14,57 +15,53 @@ const defaultProfile: UserProfile = {
   avatar: "User",
 };
 
+const TEN_MINUTES = 1000 * 60 * 10;
+
+const fetchProfile = async (userId: string, userEmail?: string, userName?: string): Promise<UserProfile> => {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("name, email, avatar_url")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (data) {
+    return {
+      name: data.name || userName || "User",
+      email: data.email || userEmail || "user@example.com",
+      avatar: data.avatar_url || data.name || "User",
+    };
+  }
+  
+  // Use auth user data as fallback
+  return {
+    name: userName || userEmail?.split("@")[0] || "User",
+    email: userEmail || "user@example.com",
+    avatar: userName || "User",
+  };
+};
+
 export function useUserProfile() {
   const { user } = useAuth();
-  const [profile, setProfile] = useState<UserProfile>(defaultProfile);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-    } else {
-      setProfile(defaultProfile);
-      setLoading(false);
-    }
-  }, [user]);
+  const { data: profile = defaultProfile, isLoading: loading } = useQuery({
+    queryKey: ["profile", user?.id],
+    queryFn: () => fetchProfile(
+      user!.id, 
+      user?.email, 
+      user?.user_metadata?.name
+    ),
+    enabled: !!user,
+    staleTime: TEN_MINUTES,
+    gcTime: TEN_MINUTES * 3,
+  });
 
-  const fetchProfile = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("name, email, avatar_url")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (data) {
-        setProfile({
-          name: data.name || user.user_metadata?.name || "User",
-          email: data.email || user.email || "user@example.com",
-          avatar: data.avatar_url || data.name || "User",
-        });
-      } else {
-        // Use auth user data as fallback
-        setProfile({
-          name: user.user_metadata?.name || user.email?.split("@")[0] || "User",
-          email: user.email || "user@example.com",
-          avatar: user.user_metadata?.name || "User",
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return;
-
-    try {
+  const updateMutation = useMutation({
+    mutationFn: async (updates: Partial<UserProfile>) => {
+      if (!user) throw new Error("Not authenticated");
+      
       const updateData: { name?: string; email?: string; avatar_url?: string } = {};
       if (updates.name) updateData.name = updates.name;
       if (updates.email) updateData.email = updates.email;
@@ -76,13 +73,43 @@ export function useUserProfile() {
         .eq("user_id", user.id);
 
       if (error) throw error;
+      return updates;
+    },
+    onMutate: async (updates) => {
+      await queryClient.cancelQueries({ queryKey: ["profile", user?.id] });
+      
+      const previousProfile = queryClient.getQueryData<UserProfile>(["profile", user?.id]);
+      
+      // Optimistically update
+      queryClient.setQueryData<UserProfile>(["profile", user?.id], (old = defaultProfile) => ({
+        ...old,
+        ...updates,
+      }));
 
-      setProfile((prev) => ({ ...prev, ...updates }));
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      throw error;
-    }
+      return { previousProfile };
+    },
+    onError: (err, updates, context) => {
+      if (context?.previousProfile) {
+        queryClient.setQueryData(["profile", user?.id], context.previousProfile);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
+    },
+  });
+
+  const updateProfile = useCallback(async (updates: Partial<UserProfile>) => {
+    await updateMutation.mutateAsync(updates);
+  }, [updateMutation]);
+
+  const refetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
+  }, [queryClient, user?.id]);
+
+  return { 
+    profile: user ? profile : defaultProfile, 
+    updateProfile, 
+    loading: user ? loading : false, 
+    refetch 
   };
-
-  return { profile, updateProfile, loading, refetch: fetchProfile };
 }

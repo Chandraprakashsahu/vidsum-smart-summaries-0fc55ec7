@@ -52,8 +52,10 @@ const Settings = () => {
     });
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
+  const handleLogout = async () => {
+    // Import supabase client for proper signout
+    const { supabase } = await import("@/integrations/supabase/client");
+    await supabase.auth.signOut();
     toast({
       title: "Logged Out",
       description: "You have been logged out successfully",
@@ -308,7 +310,7 @@ const Settings = () => {
           <DialogHeader>
             <DialogTitle>Log Out</DialogTitle>
             <DialogDescription>
-              Are you sure you want to log out? Your saved data will be cleared.
+              Are you sure you want to log out?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">

@@ -1,23 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Clock, Headphones, Sparkles } from "lucide-react";
 
+// Content translated to English
 const onboardingScreens = [
   {
     icon: Sparkles,
-    title: "ज्ञान, अब मिनटों में।",
-    description: "लंबे YouTube वीडियो के सार को पढ़ें या सुनें।",
+    title: "Knowledge in Minutes",
+    description: "Get summaries of long YouTube videos to read or listen instantly.",
   },
   {
     icon: Clock,
-    title: "अपना समय बचाएं",
-    description: "घंटों के वीडियो देखने की ज़रूरत नहीं, बस मुख्य बातें जानें।",
+    title: "Save Your Time",
+    description: "No need to watch hours of video. Just get the key insights.",
   },
   {
     icon: Headphones,
-    title: "पढ़ें या सुनें",
-    description: "ड्राइविंग करते हुए या काम करते हुए भी ज्ञान प्राप्त करें।",
+    title: "Read or Listen",
+    description: "Learn on the go while driving, working, or relaxing.",
   },
 ];
 
@@ -25,10 +26,21 @@ const Onboarding = () => {
   const [currentScreen, setCurrentScreen] = useState(0);
   const navigate = useNavigate();
 
+  // Component load hone par check karein ki user pehle aa chuka hai ya nahi
+  useEffect(() => {
+    const isOnboardingDone = localStorage.getItem("vidsum-onboarding-done");
+    if (isOnboardingDone) {
+      // Agar pehle dekh chuka hai, to sidha Auth page par bhejo
+      navigate("/auth", { replace: true });
+    }
+  }, [navigate]);
+
   const handleNext = () => {
     if (currentScreen < onboardingScreens.length - 1) {
       setCurrentScreen(currentScreen + 1);
     } else {
+      // Last step par local storage me save kar lo
+      localStorage.setItem("vidsum-onboarding-done", "true");
       navigate("/auth");
     }
   };

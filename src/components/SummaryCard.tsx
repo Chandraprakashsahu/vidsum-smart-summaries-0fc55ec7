@@ -23,26 +23,30 @@ const SummaryCard = ({
 }: SummaryCardProps) => {
   const navigate = useNavigate();
 
-  // Generate avatar seed from channel name if no logo
   const avatarSeed = channel.replace(/\s+/g, '');
   const logoUrl = channelLogo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`;
 
   return (
     <div
       onClick={() => navigate(`/summary/${id}`)}
-      className="flex gap-3 sm:gap-4 p-3 rounded-xl bg-card hover:bg-muted/50 transition-all cursor-pointer group border border-transparent hover:border-border"
+      className="flex gap-3 sm:gap-4 p-3 rounded-xl bg-card hover:bg-muted/50 transition-all cursor-pointer group border border-transparent hover:border-border items-start" // items-start added
     >
+      {/* Wrapper div changes: items-start prevents stretching */}
       <div className="relative flex-shrink-0">
         <img
           src={thumbnail}
           alt={title}
-          className="w-24 h-16 sm:w-32 sm:h-20 object-cover rounded-lg"
+          // Changes here: 
+          // 1. 'h-16' hataya aur 'aspect-video' lagaya (perfect youtube shape ke liye)
+          // 2. 'object-cover' rakha
+          // 3. 'block' lagaya (niche ka barik gap hatane ke liye)
+          className="w-28 sm:w-36 aspect-video object-cover rounded-lg block bg-muted"
         />
-        <div className="absolute inset-0 bg-black/20 rounded-lg group-hover:bg-black/30 transition-colors" />
+        <div className="absolute inset-0 bg-black/10 rounded-lg group-hover:bg-black/20 transition-colors" />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <h3 className="font-semibold text-foreground line-clamp-2 mb-1 text-sm sm:text-base group-hover:text-primary transition-colors">
+      <div className="flex-1 min-w-0 py-0.5"> {/* py-0.5 added for better alignment with image top */}
+        <h3 className="font-semibold text-foreground line-clamp-2 mb-1.5 text-sm sm:text-base group-hover:text-primary transition-colors leading-tight">
           {title}
         </h3>
         <div className="flex items-center gap-2 mb-2">
@@ -55,11 +59,11 @@ const SummaryCard = ({
         <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <BookOpen className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-            <span>{readTime} min read</span>
+            <span>{readTime} min</span>
           </span>
           <span className="flex items-center gap-1">
             <Headphones className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-            <span>{listenTime} min listen</span>
+            <span>{listenTime} min</span>
           </span>
         </div>
       </div>
